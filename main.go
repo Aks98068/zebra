@@ -12,7 +12,10 @@ import (
 )
 
 func main() {
+	commands.Init()
+
 	currentDir := "."
+
 	cliArgs := os.Args[1:]
 
 	if len(cliArgs) == 0 {
@@ -20,18 +23,31 @@ func main() {
 		return
 	}
 
-	// bash already split cliArgs for us -- no need for util.Tokenize here.
-	commands.Dispatch(cliArgs, &currentDir)
+	scanner := bufio.NewScanner(os.Stdin)
+
+	ctx := &commands.Context{
+		CurrentDir: &currentDir,
+		Scanner:    scanner,
+	}
+
+	commands.Execute(cliArgs, ctx)
 }
 
 func runInteractive(currentDir *string) {
 	ui.PrintBanner()
 
 	scanner := bufio.NewScanner(os.Stdin)
+
+	ctx := &commands.Context{
+		CurrentDir: currentDir,
+		Scanner:    scanner,
+	}
+
 	fmt.Printf("zebra (%s) > ", *currentDir)
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
+
 		if line == "" {
 			fmt.Printf("zebra (%s) > ", *currentDir)
 			continue
@@ -39,7 +55,7 @@ func runInteractive(currentDir *string) {
 
 		tokens := util.Tokenize(line)
 
-		if commands.Dispatch(tokens, currentDir) {
+		if commands.Execute(tokens, ctx) {
 			return
 		}
 
