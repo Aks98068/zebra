@@ -48,16 +48,3 @@ func printBoxLine(width int, text string) {
 	fmt.Printf("│ %s%s │\n", text, strings.Repeat(" ", padding))
 }
 
-func PrintHelp() {
-	fmt.Println("Available commands:")
-	fmt.Println("  folder <name> [name2 ...]   create one or more folders")
-	fmt.Println("  file <name> [name2 ...]     create one or more files in current folder")
-	fmt.Println("  cd <name>                   move into a folder")
-	fmt.Println("  remove <name> [name2 ...]   delete a file or folder (recursive)")
-	fmt.Println("  copy <src> <dest>           copy a file or folder")
-	fmt.Println("  copy <src> <dest> <a> <b>   copy only lines a-b of a file")
-	fmt.Println("  read | cat <file>           print a file's content")
-	fmt.Println("  write <file>                open the mini editor")
-	fmt.Println("  pwd                         show current folder")
-	fmt.Println("  exit / quit                 leave zebra")
-}

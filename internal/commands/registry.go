@@ -4,7 +4,6 @@ import "fmt"
 
 var registry = make(map[string]Command)
 
-// Register adds a command to the registry.
 func Register(command Command) {
 	registry[command.Name] = command
 
@@ -13,7 +12,143 @@ func Register(command Command) {
 	}
 }
 
-// Execute finds and runs a registered command.
+func Init() {
+	registry = make(map[string]Command)
+
+	// =========================================================
+	// Filesystem commands
+	// =========================================================
+
+	Register(Command{
+		Name:        "folder",
+		Description: "create a folder",
+		Usage:       "folder <path>",
+		Run:         handleFolder,
+	})
+
+	Register(Command{
+		Name:        "file",
+		Description: "create a file",
+		Usage:       "file <path>",
+		Run:         handleFile,
+	})
+
+	Register(Command{
+		Name:        "cd",
+		Description: "change current directory",
+		Usage:       "cd <path>",
+		Run:         handleCd,
+	})
+
+	Register(Command{
+		Name:        "pwd",
+		Description: "show current directory",
+		Usage:       "pwd",
+		Run:         handlePwd,
+	})
+
+	Register(Command{
+		Name:        "remove",
+		Aliases:     []string{"rm"},
+		Description: "remove a file or folder",
+		Usage:       "remove <path>",
+		Run:         handleRemove,
+	})
+
+	Register(Command{
+		Name:        "copy",
+		Aliases:     []string{"cp"},
+		Description: "copy a file",
+		Usage:       "copy <source> <destination>",
+		Run:         handleCopy,
+	})
+
+	Register(Command{
+		Name:        "move",
+		Aliases:     []string{"mv"},
+		Description: "move a file or folder",
+		Usage:       "move <source> <destination>",
+		Run:         handleMove,
+	})
+
+	Register(Command{
+		Name:        "cat",
+		Aliases:     []string{"read"},
+		Description: "read a file",
+		Usage:       "cat <file>",
+		Run:         handleCat,
+	})
+
+	Register(Command{
+		Name:        "write",
+		Aliases:     []string{"nano", "vim"},
+		Description: "write content to a file",
+		Usage:       "write <file>",
+		Run:         handleWrite,
+	})
+
+	// =========================================================
+	// Environment commands
+	// =========================================================
+
+	Register(Command{
+		Name:        "get",
+		Description: "get an environment variable",
+		Usage:       "get <name> | get -A | get --all",
+		Run:         getEnvironmentVariableCommand,
+	})
+
+	Register(Command{
+		Name:        "set",
+		Description: "set a persistent environment variable",
+		Usage:       "set <name> <value>",
+		Run:         setEnvironmentVariablesCommand,
+	})
+
+	Register(Command{
+		Name:        "unset",
+		Description: "remove a persistent environment variable",
+		Usage:       "unset <name>",
+		Run:         unsetEnvironmentVariableCommand,
+	})
+
+	// PATH has dedicated commands so existing PATH entries
+	// are preserved when adding or removing directories.
+Register(Command{
+	Name:        "path",
+	Description: "view and manage PATH",
+	Usage:       "path | path add <directory> | path remove <directory>",
+	Run:         pathCommand,
+})
+
+	// =========================================================
+	// General commands
+	// =========================================================
+
+	Register(Command{
+		Name:        "help",
+		Description: "show available commands",
+		Usage:       "help",
+		Run:         handleHelp,
+	})
+
+	Register(Command{
+		Name:        "exit",
+		Aliases:     []string{"quit"},
+		Description: "exit Zebra",
+		Usage:       "exit",
+		Run:         handleExit,
+	})
+	
+	Register(Command{
+	Name:        "terminal",
+	Aliases:     []string{"term", "newterminal"},
+	Description: "open a new Zebra terminal",
+	Usage:       "terminal",
+	Run:         handleTerminal,
+})
+}
+
 func Execute(tokens []string, ctx *Context) bool {
 	if len(tokens) == 0 {
 		return false
@@ -31,109 +166,3 @@ func Execute(tokens []string, ctx *Context) bool {
 
 	return command.Run(args, ctx)
 }
-
-// Init registers all built-in commands.
-func Init() {
-	Register(Command{
-		Name:        "folder",
-		Description: "create one or more folders",
-		Usage:       "folder <name> [name2 ...]",
-		Run:         handleFolder,
-	})
-
-	Register(Command{
-		Name:        "file",
-		Description: "create one or more files",
-		Usage:       "file <name> [name2 ...]",
-		Run:         handleFile,
-	})
-
-	Register(Command{
-		Name:        "cd",
-		Description: "move into a folder",
-		Usage:       "cd <name>",
-		Run:         handleCd,
-	})
-
-	Register(Command{
-		Name:        "remove",
-		Aliases:     []string{"rm"},
-		Description: "delete a file or folder recursively",
-		Usage:       "remove <name> [name2 ...]",
-		Run:         handleRemove,
-	})
-
-	Register(Command{
-		Name:        "copy",
-		Aliases:     []string{"cp"},
-		Description: "copy a file or folder",
-		Usage:       "copy <src> <dest> [start end]",
-		Run:         handleCopy,
-	})
-
-	Register(Command{
-		Name:        "cat",
-		Aliases:     []string{"read"},
-		Description: "print a file's content",
-		Usage:       "cat <file> [-n]",
-		Run:         handleCat,
-	})
-
-	Register(Command{
-		Name:        "write",
-		Aliases:     []string{"nano", "vim"},
-		Description: "open the mini editor",
-		Usage:       "write <file>",
-		Run:         handleWrite,
-	})
-
-	Register(Command{
-		Name:        "pwd",
-		Description: "show current folder",
-		Usage:       "pwd",
-		Run:         handlePwd,
-	})
-
-	Register(Command{
-		Name:        "help",
-		Description: "show available commands",
-		Usage:       "help",
-		Run:         handleHelp,
-	})
-
-	Register(Command{
-		Name:        "exit",
-		Aliases:     []string{"quit"},
-		Description: "leave Zebra",
-		Usage:       "exit",
-		Run:         handleExit,
-	})
-
-	Register(Command{
-		Name:        "move",
-		Aliases:     []string{"mv"},
-		Description: "move a file or folder",
-		Usage:       "move <source> <destination>",
-		Run:         handleMove,
-	})
-	Register(Command{
-	Name:        "get -A environmentvariables",
-	Description: "get all environment variables of the system",
-	Usage:       "get -A environmentvariables",
-	Run:         getAllEnvironmentVariablesCommand,
-})
-
-Register(Command{
-	Name:        "get",
-	Description: "get a particular environment variable of the system",
-	Usage:       "get <environment-variable-name>",
-	Run:         getEnvironmentVariableCommand,
-})
-}
-
-Register(Command{
-	Name:        "unset",
-	Description: "remove a persistent environment variable",
-	Usage:       "unset <environment-variable-name>",
-	Run:         unsetEnvironmentVariableCommand,
-})
