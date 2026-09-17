@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 )
@@ -26,6 +27,9 @@ import (
 //     Linux
 //     macOS
 //
+// The new terminal starts in Zebra's CURRENT DIRECTORY,
+// not in the directory where zebra.exe is installed.
+//
 // ============================================================
 
 const zebraTerminalChildEnv = "ZEBRA_TERMINAL_CHILD"
@@ -40,7 +44,24 @@ func handleTerminal(args []string, ctx *Context) bool {
 		return false
 	}
 
-	if err := OpenZebraTerminal(); err != nil {
+	// --------------------------------------------------------
+	// IMPORTANT:
+	//
+	// Use Zebra's virtual current directory.
+	//
+	// Example:
+	//
+	// Zebra executable:
+	//     D:\Programs\Zebra\zebra.exe
+	//
+	// Current Zebra directory:
+	//     C:\Users\ACER\Documents
+	//
+	// The new terminal opens at:
+	//     C:\Users\ACER\Documents
+	// --------------------------------------------------------
+
+	if err := OpenZebraTerminalAt(*ctx.CurrentDir); err != nil {
 		fmt.Println("terminal:", err)
 		return false
 	}
@@ -54,22 +75,88 @@ func handleTerminal(args []string, ctx *Context) bool {
 // PUBLIC FUNCTION
 // ============================================================
 //
-// This function can be called from main.go:
+// Opens a new Zebra terminal using the operating system's
+// normal terminal application.
 //
-//     commands.OpenZebraTerminal()
+// This function is useful when no Zebra Context is available.
 //
 // ============================================================
 
 func OpenZebraTerminal() error {
-	return openNewTerminal()
+	workingDir, err := os.Getwd()
+
+	if err != nil {
+		workingDir = "."
+	}
+
+	return OpenZebraTerminalAt(workingDir)
+}
+
+// ============================================================
+// PUBLIC FUNCTION
+// ============================================================
+//
+// Opens a new Zebra terminal at a specific directory.
+//
+// This is the function that should be used by:
+//
+//     handleTerminal()
+//     main.go
+//
+// ============================================================
+
+func OpenZebraTerminalAt(workingDir string) error {
+
+	// --------------------------------------------------------
+	// Normalize working directory
+	// --------------------------------------------------------
+
+	if strings.TrimSpace(workingDir) == "" {
+		workingDir = "."
+	}
+
+	absoluteDir, err := filepath.Abs(workingDir)
+
+	if err == nil {
+		workingDir = filepath.Clean(absoluteDir)
+	}
+
+	// --------------------------------------------------------
+	// Verify directory exists
+	// --------------------------------------------------------
+
+	info, err := os.Stat(workingDir)
+
+	if err != nil {
+		return fmt.Errorf(
+			"working directory does not exist: %s: %w",
+			workingDir,
+			err,
+		)
+	}
+
+	if !info.IsDir() {
+		return fmt.Errorf(
+			"working path is not a directory: %s",
+			workingDir,
+		)
+	}
+
+	return openNewTerminal(workingDir)
 }
 
 // ============================================================
 // OPEN NEW TERMINAL
 // ============================================================
 
-func openNewTerminal() error {
+func openNewTerminal(workingDir string) error {
+
+	// --------------------------------------------------------
+	// Find Zebra executable
+	// --------------------------------------------------------
+
 	executable, err := os.Executable()
+
 	if err != nil {
 		return fmt.Errorf(
 			"unable to find Zebra executable: %w",
@@ -77,10 +164,36 @@ func openNewTerminal() error {
 		)
 	}
 
-	workingDir, err := os.Getwd()
+	// --------------------------------------------------------
+	// Resolve executable to absolute path
+	// --------------------------------------------------------
+
+	executable, err = filepath.Abs(executable)
+
 	if err != nil {
-		workingDir = "."
+		return fmt.Errorf(
+			"unable to resolve Zebra executable: %w",
+			err,
+		)
 	}
+
+	executable = filepath.Clean(executable)
+
+	// --------------------------------------------------------
+	// Make sure executable exists
+	// --------------------------------------------------------
+
+	if _, err := os.Stat(executable); err != nil {
+		return fmt.Errorf(
+			"Zebra executable does not exist: %s: %w",
+			executable,
+			err,
+		)
+	}
+
+	// --------------------------------------------------------
+	// Select platform
+	// --------------------------------------------------------
 
 	switch runtime.GOOS {
 
@@ -118,7 +231,21 @@ func openNewTerminal() error {
 //
 //     ZEBRA_TERMINAL_CHILD=1
 //
-// This prevents automatic recursive terminal creation.
+// This is important because main.go automatically opens a new
+// terminal when Zebra starts without arguments.
+//
+// Without this flag:
+//
+//     Zebra
+//       ↓
+//     opens Zebra
+//       ↓
+//     opens Zebra
+//       ↓
+//     opens Zebra
+//
+// With this flag, the child starts directly inside the newly
+// opened terminal.
 //
 // ============================================================
 
@@ -150,11 +277,26 @@ func openWindowsTerminal(
 	// --------------------------------------------------------
 	// Windows Terminal
 	// --------------------------------------------------------
+	//
+	// Prefer Windows Terminal when installed.
+	//
+	// -w new
+	//     Create a NEW Windows Terminal window.
+	//
+	// new-tab
+	//     Create a new tab in that window.
+	//
+	// --startingDirectory
+	//     Start Zebra in the requested directory.
+	//
+	// --------------------------------------------------------
 
 	if wtPath, err := exec.LookPath("wt.exe"); err == nil {
 
 		cmd := exec.Command(
 			wtPath,
+			"-w",
+			"new",
 			"new-tab",
 			"--startingDirectory",
 			workingDir,
@@ -169,17 +311,59 @@ func openWindowsTerminal(
 	}
 
 	// --------------------------------------------------------
-	// Command Prompt fallback
+	// Windows CMD fallback
+	// --------------------------------------------------------
+	//
+	// Do NOT rely on:
+	//
+	//     cmd.exe
+	//
+	// being available in PATH.
+	//
+	// Use:
+	//
+	//     C:\Windows\System32\cmd.exe
+	//
+	// through %SystemRoot%.
+	// --------------------------------------------------------
+
+	systemRoot := os.Getenv("SystemRoot")
+
+	if systemRoot == "" {
+		systemRoot = `C:\Windows`
+	}
+
+	cmdPath := filepath.Join(
+		systemRoot,
+		"System32",
+		"cmd.exe",
+	)
+
+	// --------------------------------------------------------
+	// Verify CMD exists
+	// --------------------------------------------------------
+
+	if _, err := os.Stat(cmdPath); err != nil {
+		return fmt.Errorf(
+			"Windows CMD was not found at %s: %w",
+			cmdPath,
+			err,
+		)
+	}
+
+	// --------------------------------------------------------
+	// Start CMD in the requested directory
 	// --------------------------------------------------------
 
 	cmd := exec.Command(
-		"cmd.exe",
+		cmdPath,
 		"/c",
 		"start",
 		"Zebra",
 		executable,
 	)
 
+	cmd.Dir = workingDir
 	cmd.Env = env
 
 	if err := cmd.Start(); err != nil {
@@ -309,6 +493,7 @@ func openLinuxTerminal(
 			executable,
 		)
 
+		cmd.Dir = workingDir
 		cmd.Env = env
 
 		if err := cmd.Start(); err == nil {
@@ -396,6 +581,7 @@ func shellQuote(value string) string {
 // ============================================================
 
 func escapeAppleScript(value string) string {
+
 	value = strings.ReplaceAll(
 		value,
 		"\\",

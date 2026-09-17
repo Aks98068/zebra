@@ -1,7 +1,9 @@
 package commands
 
-import "fmt"
-
+import (
+	"fmt"
+	"sort"
+)
 var registry = make(map[string]Command)
 
 func Register(command Command) {
@@ -87,33 +89,46 @@ func Init() {
 		Run:         handleWrite,
 	})
 
+	Register(Command{
+	Name:        "ls",
+	Aliases:     []string{"list"},
+	Description: "list files and folders",
+	Usage:       "ls [path]",
+	Run:         handleLs,
+})
+
+Register(Command{
+	Name:        "dir",
+	Description: "list files and folders",
+	Usage:       "dir [path]",
+	Run:         handleLs,
+})
+
 	// =========================================================
-	// Environment commands
-	// =========================================================
+// ENVIRONMENT COMMANDS
+// =========================================================
 
-	Register(Command{
-		Name:        "get",
-		Description: "get an environment variable",
-		Usage:       "get <name> | get -A | get --all",
-		Run:         getEnvironmentVariableCommand,
-	})
+Register(Command{
+	Name:        "get",
+	Description: "get an environment variable",
+	Usage:       "get <name> | get -A | get --all",
+	Run:         getEnvironmentVariableCommand,
+})
 
-	Register(Command{
-		Name:        "set",
-		Description: "set a persistent environment variable",
-		Usage:       "set <name> <value>",
-		Run:         setEnvironmentVariablesCommand,
-	})
+Register(Command{
+	Name:        "set",
+	Description: "set a persistent environment variable",
+	Usage:       "set <name> <value>",
+	Run:         setEnvironmentVariablesCommand,
+})
 
-	Register(Command{
-		Name:        "unset",
-		Description: "remove a persistent environment variable",
-		Usage:       "unset <name>",
-		Run:         unsetEnvironmentVariableCommand,
-	})
+Register(Command{
+	Name:        "unset",
+	Description: "remove a persistent environment variable",
+	Usage:       "unset <name>",
+	Run:         unsetEnvironmentVariableCommand,
+})
 
-	// PATH has dedicated commands so existing PATH entries
-	// are preserved when adding or removing directories.
 Register(Command{
 	Name:        "path",
 	Description: "view and manage PATH",
@@ -165,4 +180,23 @@ func Execute(tokens []string, ctx *Context) bool {
 	}
 
 	return command.Run(args, ctx)
+}
+
+func Names() []string {
+	names := make([]string, 0, len(registry))
+
+	seen := make(map[string]bool)
+
+	for _, command := range registry {
+		if seen[command.Name] {
+			continue
+		}
+
+		seen[command.Name] = true
+		names = append(names, command.Name)
+	}
+
+	sort.Strings(names)
+
+	return names
 }
