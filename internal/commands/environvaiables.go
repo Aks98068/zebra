@@ -50,6 +50,13 @@ const (
 //
 // ============================================================
 
+func zebraVersion(args []string, ctx *Context) bool {
+
+	fmt.Println("Zebra 1.0 version")
+
+	return false
+}
+
 func getEnvironmentVariableCommand(
 	args []string,
 	ctx *Context,
@@ -589,8 +596,8 @@ func setEnvironmentVariablesCommand(
 	); err != nil {
 
 		fmt.Println(
-			colorYellow +
-				"Warning: variable was persisted, but current process could not update it: " +
+			colorYellow+
+				"Warning: variable was persisted, but current process could not update it: "+
 				colorReset,
 			err,
 		)
@@ -730,8 +737,8 @@ func unsetEnvironmentVariableCommand(
 	if err := os.Unsetenv(name); err != nil {
 
 		fmt.Println(
-			colorYellow +
-				"Warning: persistent variable was removed, but current process could not update it: " +
+			colorYellow+
+				"Warning: persistent variable was removed, but current process could not update it: "+
 				colorReset,
 			err,
 		)
@@ -812,9 +819,9 @@ func pathCommand(
 		); err != nil {
 
 			fmt.Println(
-				colorRed+
-					"Error: "+
-					colorReset+
+				colorRed +
+					"Error: " +
+					colorReset +
 					err.Error(),
 			)
 
@@ -854,9 +861,9 @@ func pathCommand(
 		); err != nil {
 
 			fmt.Println(
-				colorRed+
-					"Error: "+
-					colorReset+
+				colorRed +
+					"Error: " +
+					colorReset +
 					err.Error(),
 			)
 

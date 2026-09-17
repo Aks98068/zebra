@@ -499,40 +499,30 @@ func colorizeInput(input string) string {
 
 		switch {
 		case position == 0:
-			result.WriteString(
-				ui.BrightCyan +
-					ui.Bold +
-					token +
-					ui.Reset,
-			)
+			result.WriteString(ui.BrightCyan)
+			result.WriteString(ui.Bold)
+			result.WriteString(token)
+			result.WriteString(ui.Reset)
 
 		case strings.HasPrefix(token, "-"):
-			result.WriteString(
-				ui.BrightYellow +
-					token +
-					ui.Reset,
-			)
+			result.WriteString(ui.BrightYellow)
+			result.WriteString(token)
+			result.WriteString(ui.Reset)
 
 		case looksLikePath(token):
-			result.WriteString(
-				ui.BrightGreen +
-					token +
-					ui.Reset,
-			)
+			result.WriteString(ui.BrightGreen)
+			result.WriteString(token)
+			result.WriteString(ui.Reset)
 
 		case looksLikeNumber(token):
-			result.WriteString(
-				ui.BrightMagenta +
-					token +
-					ui.Reset,
-			)
+			result.WriteString(ui.BrightMagenta)
+			result.WriteString(token)
+			result.WriteString(ui.Reset)
 
 		default:
-			result.WriteString(
-				ui.BrightWhite +
-					token +
-					ui.Reset,
-			)
+			result.WriteString(ui.BrightWhite)
+			result.WriteString(token)
+			result.WriteString(ui.Reset)
 		}
 
 		position = index + len(token)

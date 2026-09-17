@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 )
+
 var registry = make(map[string]Command)
 
 func Register(command Command) {
@@ -90,51 +91,51 @@ func Init() {
 	})
 
 	Register(Command{
-	Name:        "ls",
-	Aliases:     []string{"list"},
-	Description: "list files and folders",
-	Usage:       "ls [path]",
-	Run:         handleLs,
-})
+		Name:        "ls",
+		Aliases:     []string{"list"},
+		Description: "list files and folders",
+		Usage:       "ls [path]",
+		Run:         handleLs,
+	})
 
-Register(Command{
-	Name:        "dir",
-	Description: "list files and folders",
-	Usage:       "dir [path]",
-	Run:         handleLs,
-})
+	Register(Command{
+		Name:        "dir",
+		Description: "list files and folders",
+		Usage:       "dir [path]",
+		Run:         handleLs,
+	})
 
 	// =========================================================
-// ENVIRONMENT COMMANDS
-// =========================================================
+	// ENVIRONMENT COMMANDS
+	// =========================================================
 
-Register(Command{
-	Name:        "get",
-	Description: "get an environment variable",
-	Usage:       "get <name> | get -A | get --all",
-	Run:         getEnvironmentVariableCommand,
-})
+	Register(Command{
+		Name:        "get",
+		Description: "get an environment variable",
+		Usage:       "get <name> | get -A | get --all",
+		Run:         getEnvironmentVariableCommand,
+	})
 
-Register(Command{
-	Name:        "set",
-	Description: "set a persistent environment variable",
-	Usage:       "set <name> <value>",
-	Run:         setEnvironmentVariablesCommand,
-})
+	Register(Command{
+		Name:        "set",
+		Description: "set a persistent environment variable",
+		Usage:       "set <name> <value>",
+		Run:         setEnvironmentVariablesCommand,
+	})
 
-Register(Command{
-	Name:        "unset",
-	Description: "remove a persistent environment variable",
-	Usage:       "unset <name>",
-	Run:         unsetEnvironmentVariableCommand,
-})
+	Register(Command{
+		Name:        "unset",
+		Description: "remove a persistent environment variable",
+		Usage:       "unset <name>",
+		Run:         unsetEnvironmentVariableCommand,
+	})
 
-Register(Command{
-	Name:        "path",
-	Description: "view and manage PATH",
-	Usage:       "path | path add <directory> | path remove <directory>",
-	Run:         pathCommand,
-})
+	Register(Command{
+		Name:        "path",
+		Description: "view and manage PATH",
+		Usage:       "path | path add <directory> | path remove <directory>",
+		Run:         pathCommand,
+	})
 
 	// =========================================================
 	// General commands
@@ -154,14 +155,22 @@ Register(Command{
 		Usage:       "exit",
 		Run:         handleExit,
 	})
-	
+
 	Register(Command{
-	Name:        "terminal",
-	Aliases:     []string{"term", "newterminal"},
-	Description: "open a new Zebra terminal",
-	Usage:       "terminal",
-	Run:         handleTerminal,
-})
+		Name:        "terminal",
+		Aliases:     []string{"term", "newterminal"},
+		Description: "open a new Zebra terminal",
+		Usage:       "terminal",
+		Run:         handleTerminal,
+	})
+
+	Register(Command{
+		Name:        "--version",
+		Aliases:     []string{"term", "version"},
+		Description: "dispaly a version",
+		Usage:       "zebra --version",
+		Run:         zebraVersion,
+	})
 }
 
 func Execute(tokens []string, ctx *Context) bool {
