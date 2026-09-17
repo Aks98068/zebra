@@ -9,16 +9,11 @@ import (
 )
 
 func getAllEnvironmentVariables() {
-	// Get all environment variables
 	variables := os.Environ()
 
-	// Loop through all environment variables
 	for _, variable := range variables {
-
-		// Split into name and value
 		parts := strings.SplitN(variable, "=", 2)
 
-		// Make sure we have both name and value
 		if len(parts) == 2 {
 			name := parts[0]
 			value := parts[1]
@@ -30,17 +25,37 @@ func getAllEnvironmentVariables() {
 	}
 }
 
-func getAllEnvironmentVariable(name string) {
+func getEnvironmentVariable(name string) {
 	value, exists := os.LookupEnv(name)
 
 	if exists {
-		fmt.Println("variable exists: ", value)
+		fmt.Println("Variable exists:", value)
 	} else {
-		fmt.Println("variabler doesnot exists", name)
+		fmt.Println("Variable does not exist:", name)
 	}
 }
-func setPersistentEnvironmentVariable(name string, value string) error {
 
+// Command handler for: get -A environmentvariables
+func getAllEnvironmentVariablesCommand(args []string, ctx *Context) bool {
+	getAllEnvironmentVariables()
+	return true
+}
+
+// Command handler for: get <environment-variable-name>
+func getEnvironmentVariableCommand(args []string, ctx *Context) bool {
+	if len(args) < 1 {
+		fmt.Println("Usage: get <environment-variable-name>")
+		return false
+	}
+
+	name := args[0]
+
+	getEnvironmentVariable(name)
+
+	return true
+}
+
+func setPersistentEnvironmentVariable(name string, value string) error {
 	switch runtime.GOOS {
 	case "windows":
 		return winowsfun(name, value)
@@ -57,36 +72,117 @@ func setPersistentEnvironmentVariable(name string, value string) error {
 }
 
 func winowsfun(name string, value string) error {
-	// Windows implementation
 	command := fmt.Sprintf(
 		`[Environment]::SetEnvironmentVariable("%s","%s", "User")`,
 		name,
 		value,
 	)
 
-	cmd := exec.Command("powershell", "-NoProfile", "-Command", command)
+	cmd := exec.Command(
+		"powershell",
+		"-NoProfile",
+		"-Command",
+		command,
+	)
 
-	err := cmd.Run()
-	return err
+	return cmd.Run()
 }
 
 func linuxfun(name string, value string) error {
-	// Linux implementation
 	command := fmt.Sprintf(
-		`echo 'export %s="%s"' >> ~/.bashrc`, name, value,
+		`echo 'export %s="%s"' >> ~/.bashrc`,
+		name,
+		value,
 	)
 
 	cmd := exec.Command("bash", "-c", command)
 
-	err := cmd.Run()
-	return err
+	return cmd.Run()
 }
 
 func macfun(name string, value string) error {
-	// macOS implementation
-	command := fmt.Sprintf(`echo 'export %s="%s"' >> ~/.zshrc`, name, value)
-	cmd := exec.Command("zsh", "-c", command)
-	error := cmd.Run()
+	command := fmt.Sprintf(
+		`echo 'export %s="%s"' >> ~/.zshrc`,
+		name,
+		value,
+	)
 
-	return error
+	cmd := exec.Command("zsh", "-c", command)
+
+	return cmd.Run()
+}
+
+
+func unsetPersistentEnvironmentVariable(name string) error {
+	switch runtime.GOOS {
+	case "windows":
+		return unsetWindowsEnvironmentVariable(name)
+
+	case "linux":
+		return unsetLinuxEnvironmentVariable(name)
+
+	case "darwin":
+		return unsetMacEnvironmentVariable(name)
+
+	default:
+		return fmt.Errorf("unsupported OS: %s", runtime.GOOS)
+	}
+}
+
+func unsetWindowsEnvironmentVariable(name string) error {
+	command := fmt.Sprintf(
+		`[Environment]::SetEnvironmentVariable("%s", $null, "User")`,
+		name,
+	)
+
+	cmd := exec.Command(
+		"powershell",
+		"-NoProfile",
+		"-Command",
+		command,
+	)
+
+	return cmd.Run()
+}
+
+func unsetLinuxEnvironmentVariable(name string) error {
+	command := fmt.Sprintf(
+		`sed -i '/^export %s=/d' ~/.bashrc`,
+		name,
+	)
+
+	cmd := exec.Command("bash", "-c", command)
+
+	return cmd.Run()
+}
+
+func unsetMacEnvironmentVariable(name string) error {
+	command := fmt.Sprintf(
+		`sed -i '' '/^export %s=/d' ~/.zshrc`,
+		name,
+	)
+
+	cmd := exec.Command("zsh", "-c", command)
+
+	return cmd.Run()
+}
+
+func unsetEnvironmentVariableCommand(args []string, ctx *Context) bool {
+	if len(args) < 1 {
+		fmt.Println("Usage: unset <environment-variable-name>")
+		return false
+	}
+
+	name := args[0]
+
+	err := unsetPersistentEnvironmentVariable(name)
+
+	if err != nil {
+		fmt.Println("Error:", err)
+		return false
+	}
+
+	fmt.Println("Environment variable removed:", name)
+
+	return true
 }

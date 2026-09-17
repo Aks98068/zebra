@@ -116,4 +116,24 @@ func Init() {
 		Usage:       "move <source> <destination>",
 		Run:         handleMove,
 	})
+	Register(Command{
+	Name:        "get -A environmentvariables",
+	Description: "get all environment variables of the system",
+	Usage:       "get -A environmentvariables",
+	Run:         getAllEnvironmentVariablesCommand,
+})
+
+Register(Command{
+	Name:        "get",
+	Description: "get a particular environment variable of the system",
+	Usage:       "get <environment-variable-name>",
+	Run:         getEnvironmentVariableCommand,
+})
 }
+
+Register(Command{
+	Name:        "unset",
+	Description: "remove a persistent environment variable",
+	Usage:       "unset <environment-variable-name>",
+	Run:         unsetEnvironmentVariableCommand,
+})
