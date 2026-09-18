@@ -1,266 +1,209 @@
 package commands
 
 import (
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"runtime"
-	"strings"
+"fmt"
+"os"
+"os/exec"
+"path/filepath"
+"runtime"
+"strings"
+"syscall"
 )
-
-// ============================================================
-// TERMINAL COMMAND
-// ============================================================
-//
-// Usage:
-//
-//     terminal
-//     term
-//     newterminal
-//
-// Opens exactly ONE new Zebra terminal.
-//
-// Supported:
-//
-//     Windows
-//     Linux
-//     macOS
-//
-// The new terminal starts in Zebra's CURRENT DIRECTORY,
-// not in the directory where zebra.exe is installed.
-//
-// ============================================================
 
 const zebraTerminalChildEnv = "ZEBRA_TERMINAL_CHILD"
 
 // ============================================================
-// TERMINAL COMMAND HANDLER
+// TERMINAL COMMAND
 // ============================================================
 
 func handleTerminal(args []string, ctx *Context) bool {
-	if len(args) > 0 {
-		fmt.Println("Usage: terminal")
-		return false
-	}
+if len(args) != 0 {
+fmt.Println("Usage: terminal")
+return false
+}
 
-	// --------------------------------------------------------
-	// IMPORTANT:
-	//
-	// Use Zebra's virtual current directory.
-	//
-	// Example:
-	//
-	// Zebra executable:
-	//     D:\Programs\Zebra\zebra.exe
-	//
-	// Current Zebra directory:
-	//     C:\Users\ACER\Documents
-	//
-	// The new terminal opens at:
-	//     C:\Users\ACER\Documents
-	// --------------------------------------------------------
 
-	if err := OpenZebraTerminalAt(*ctx.CurrentDir); err != nil {
-		fmt.Println("terminal:", err)
-		return false
-	}
-
-	fmt.Println("New Zebra terminal opened.")
-
+if ctx == nil || ctx.CurrentDir == nil {
+	fmt.Println("terminal: invalid command context")
 	return false
 }
 
+if err := OpenZebraTerminalAt(*ctx.CurrentDir); err != nil {
+	fmt.Println("terminal:", err)
+	return false
+}
+
+fmt.Println("New Zebra terminal opened.")
+
+return false
+
+
+}
+
 // ============================================================
-// PUBLIC FUNCTION
-// ============================================================
-//
-// Opens a new Zebra terminal using the operating system's
-// normal terminal application.
-//
-// This function is useful when no Zebra Context is available.
-//
+// OPEN TERMINAL
 // ============================================================
 
 func OpenZebraTerminal() error {
-	workingDir, err := os.Getwd()
+currentDir, err := os.Getwd()
 
-	if err != nil {
-		workingDir = "."
-	}
 
-	return OpenZebraTerminalAt(workingDir)
+if err != nil {
+	return OpenZebraTerminalAt(".")
+}
+
+return OpenZebraTerminalAt(currentDir)
+
+
 }
 
 // ============================================================
-// PUBLIC FUNCTION
-// ============================================================
-//
-// Opens a new Zebra terminal at a specific directory.
-//
-// This is the function that should be used by:
-//
-//     handleTerminal()
-//     main.go
-//
+// OPEN TERMINAL AT DIRECTORY
 // ============================================================
 
 func OpenZebraTerminalAt(workingDir string) error {
+workingDir = strings.TrimSpace(workingDir)
 
-	// --------------------------------------------------------
-	// Normalize working directory
-	// --------------------------------------------------------
 
-	if strings.TrimSpace(workingDir) == "" {
-		workingDir = "."
-	}
-
-	absoluteDir, err := filepath.Abs(workingDir)
-
-	if err == nil {
-		workingDir = filepath.Clean(absoluteDir)
-	}
-
-	// --------------------------------------------------------
-	// Verify directory exists
-	// --------------------------------------------------------
-
-	info, err := os.Stat(workingDir)
-
-	if err != nil {
-		return fmt.Errorf(
-			"working directory does not exist: %s: %w",
-			workingDir,
-			err,
-		)
-	}
-
-	if !info.IsDir() {
-		return fmt.Errorf(
-			"working path is not a directory: %s",
-			workingDir,
-		)
-	}
-
-	return openNewTerminal(workingDir)
+if workingDir == "" {
+	workingDir = "."
 }
 
-// ============================================================
-// OPEN NEW TERMINAL
-// ============================================================
+// ---------------------------------------------------------
+// Resolve directory
+// ---------------------------------------------------------
 
-func openNewTerminal(workingDir string) error {
+absoluteDir, err := filepath.Abs(workingDir)
 
-	// --------------------------------------------------------
-	// Find Zebra executable
-	// --------------------------------------------------------
+if err != nil {
+	return fmt.Errorf(
+		"unable to resolve working directory: %w",
+		err,
+	)
+}
 
-	executable, err := os.Executable()
+workingDir = filepath.Clean(absoluteDir)
 
-	if err != nil {
-		return fmt.Errorf(
-			"unable to find Zebra executable: %w",
-			err,
-		)
-	}
+// ---------------------------------------------------------
+// Verify directory
+// ---------------------------------------------------------
 
-	// --------------------------------------------------------
-	// Resolve executable to absolute path
-	// --------------------------------------------------------
+info, err := os.Stat(workingDir)
 
-	executable, err = filepath.Abs(executable)
+if err != nil {
+	return fmt.Errorf(
+		"working directory does not exist: %s: %w",
+		workingDir,
+		err,
+	)
+}
 
-	if err != nil {
-		return fmt.Errorf(
-			"unable to resolve Zebra executable: %w",
-			err,
-		)
-	}
+if !info.IsDir() {
+	return fmt.Errorf(
+		"working path is not a directory: %s",
+		workingDir,
+	)
+}
 
-	executable = filepath.Clean(executable)
+// ---------------------------------------------------------
+// Find current Zebra executable.
+//
+// This is important because Zebra may be installed
+// somewhere completely different from the current
+// directory.
+// ---------------------------------------------------------
 
-	// --------------------------------------------------------
-	// Make sure executable exists
-	// --------------------------------------------------------
+executable, err := os.Executable()
 
-	if _, err := os.Stat(executable); err != nil {
-		return fmt.Errorf(
-			"Zebra executable does not exist: %s: %w",
-			executable,
-			err,
-		)
-	}
+if err != nil {
+	return fmt.Errorf(
+		"unable to find Zebra executable: %w",
+		err,
+	)
+}
 
-	// --------------------------------------------------------
-	// Select platform
-	// --------------------------------------------------------
+executable, err = filepath.Abs(executable)
 
-	switch runtime.GOOS {
+if err != nil {
+	return fmt.Errorf(
+		"unable to resolve Zebra executable: %w",
+		err,
+	)
+}
 
-	case "windows":
-		return openWindowsTerminal(
-			executable,
-			workingDir,
-		)
+executable = filepath.Clean(executable)
 
-	case "linux":
-		return openLinuxTerminal(
-			executable,
-			workingDir,
-		)
+// ---------------------------------------------------------
+// Platform
+// ---------------------------------------------------------
 
-	case "darwin":
-		return openMacTerminal(
-			executable,
-			workingDir,
-		)
+switch runtime.GOOS {
 
-	default:
-		return fmt.Errorf(
-			"unsupported operating system: %s",
-			runtime.GOOS,
-		)
-	}
+case "windows":
+	return openWindowsTerminal(
+		executable,
+		workingDir,
+	)
+
+case "linux":
+	return openLinuxTerminal(
+		executable,
+		workingDir,
+	)
+
+case "darwin":
+	return openMacTerminal(
+		executable,
+		workingDir,
+	)
+
+default:
+	return fmt.Errorf(
+		"unsupported operating system: %s",
+		runtime.GOOS,
+	)
+}
+
+
 }
 
 // ============================================================
 // CHILD ENVIRONMENT
 // ============================================================
-//
-// The child Zebra receives:
-//
-//     ZEBRA_TERMINAL_CHILD=1
-//
-// This is important because main.go automatically opens a new
-// terminal when Zebra starts without arguments.
-//
-// Without this flag:
-//
-//     Zebra
-//       ↓
-//     opens Zebra
-//       ↓
-//     opens Zebra
-//       ↓
-//     opens Zebra
-//
-// With this flag, the child starts directly inside the newly
-// opened terminal.
-//
-// ============================================================
 
 func zebraChildEnvironment() []string {
-	env := append(
-		[]string{},
-		os.Environ()...,
-	)
+env := append(
+[]string{},
+os.Environ()...,
+)
 
-	env = append(
-		env,
-		zebraTerminalChildEnv+"=1",
-	)
 
-	return env
+// Remove old values first so we never end up with:
+
+// ZEBRA_TERMINAL_CHILD=0
+// ZEBRA_TERMINAL_CHILD=1
+
+filtered := make([]string, 0, len(env)+1)
+
+for _, value := range env {
+	if strings.HasPrefix(
+		value,
+		zebraTerminalChildEnv+"=",
+	) {
+		continue
+	}
+
+	filtered = append(filtered, value)
+}
+
+filtered = append(
+	filtered,
+	zebraTerminalChildEnv+"=1",
+)
+
+return filtered
+
+
 }
 
 // ============================================================
@@ -268,112 +211,57 @@ func zebraChildEnvironment() []string {
 // ============================================================
 
 func openWindowsTerminal(
-	executable string,
-	workingDir string,
+executable string,
+workingDir string,
 ) error {
 
-	env := zebraChildEnvironment()
 
-	// --------------------------------------------------------
-	// Windows Terminal
-	// --------------------------------------------------------
-	//
-	// Prefer Windows Terminal when installed.
-	//
-	// -w new
-	//     Create a NEW Windows Terminal window.
-	//
-	// new-tab
-	//     Create a new tab in that window.
-	//
-	// --startingDirectory
-	//     Start Zebra in the requested directory.
-	//
-	// --------------------------------------------------------
+env := zebraChildEnvironment()
 
-	if wtPath, err := exec.LookPath("wt.exe"); err == nil {
+// ---------------------------------------------------------
+// CREATE_NEW_CONSOLE
+//
+// Windows creates a completely separate console window.
+// ---------------------------------------------------------
 
-		cmd := exec.Command(
-			wtPath,
-			"-w",
-			"new",
-			"new-tab",
-			"--startingDirectory",
-			workingDir,
-			executable,
-		)
+const createNewConsole uint32 = 0x00000010
 
-		cmd.Env = env
+cmd := exec.Command(executable)
 
-		if err := cmd.Start(); err == nil {
-			return nil
-		}
-	}
+cmd.Dir = workingDir
+cmd.Env = env
 
-	// --------------------------------------------------------
-	// Windows CMD fallback
-	// --------------------------------------------------------
-	//
-	// Do NOT rely on:
-	//
-	//     cmd.exe
-	//
-	// being available in PATH.
-	//
-	// Use:
-	//
-	//     C:\Windows\System32\cmd.exe
-	//
-	// through %SystemRoot%.
-	// --------------------------------------------------------
+cmd.SysProcAttr = &syscall.SysProcAttr{
+	CreationFlags: createNewConsole,
+}
 
-	systemRoot := os.Getenv("SystemRoot")
+// ---------------------------------------------------------
+// Start asynchronously.
+//
+// We deliberately DO NOT call cmd.Run().
+//
+// Run() would make Zebra wait for the child.
+// Start() allows the current Zebra shell to continue.
+// ---------------------------------------------------------
 
-	if systemRoot == "" {
-		systemRoot = `C:\Windows`
-	}
-
-	cmdPath := filepath.Join(
-		systemRoot,
-		"System32",
-		"cmd.exe",
+if err := cmd.Start(); err != nil {
+	return fmt.Errorf(
+		"unable to start new Zebra console: %w",
+		err,
 	)
+}
 
-	// --------------------------------------------------------
-	// Verify CMD exists
-	// --------------------------------------------------------
+// ---------------------------------------------------------
+// Release the process handle.
+//
+// The new console owns the child process.
+// ---------------------------------------------------------
 
-	if _, err := os.Stat(cmdPath); err != nil {
-		return fmt.Errorf(
-			"Windows CMD was not found at %s: %w",
-			cmdPath,
-			err,
-		)
-	}
+_ = cmd.Process.Release()
 
-	// --------------------------------------------------------
-	// Start CMD in the requested directory
-	// --------------------------------------------------------
+return nil
 
-	cmd := exec.Command(
-		cmdPath,
-		"/c",
-		"start",
-		"Zebra",
-		executable,
-	)
 
-	cmd.Dir = workingDir
-	cmd.Env = env
-
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf(
-			"unable to open Windows terminal: %w",
-			err,
-		)
-	}
-
-	return nil
 }
 
 // ============================================================
@@ -381,181 +269,183 @@ func openWindowsTerminal(
 // ============================================================
 
 func openLinuxTerminal(
-	executable string,
-	workingDir string,
+executable string,
+workingDir string,
 ) error {
 
-	env := zebraChildEnvironment()
 
-	// --------------------------------------------------------
-	// x-terminal-emulator
-	// --------------------------------------------------------
+env := zebraChildEnvironment()
 
-	if terminal, err := exec.LookPath(
-		"x-terminal-emulator",
-	); err == nil {
+// ---------------------------------------------------------
+// x-terminal-emulator
+// ---------------------------------------------------------
 
-		cmd := exec.Command(
-			terminal,
-			"--working-directory",
-			workingDir,
-			"-e",
-			executable,
-		)
-
-		cmd.Env = env
-
-		if err := cmd.Start(); err == nil {
-			return nil
-		}
-	}
-
-	// --------------------------------------------------------
-	// GNOME Terminal
-	// --------------------------------------------------------
-
-	if terminal, err := exec.LookPath(
-		"gnome-terminal",
-	); err == nil {
-
-		cmd := exec.Command(
-			terminal,
-			"--working-directory",
-			workingDir,
-			"--",
-			executable,
-		)
-
-		cmd.Env = env
-
-		if err := cmd.Start(); err == nil {
-			return nil
-		}
-	}
-
-	// --------------------------------------------------------
-	// KDE Konsole
-	// --------------------------------------------------------
-
-	if terminal, err := exec.LookPath(
-		"konsole",
-	); err == nil {
-
-		cmd := exec.Command(
-			terminal,
-			"--workdir",
-			workingDir,
-			"-e",
-			executable,
-		)
-
-		cmd.Env = env
-
-		if err := cmd.Start(); err == nil {
-			return nil
-		}
-	}
-
-	// --------------------------------------------------------
-	// XFCE Terminal
-	// --------------------------------------------------------
-
-	if terminal, err := exec.LookPath(
-		"xfce4-terminal",
-	); err == nil {
-
-		cmd := exec.Command(
-			terminal,
-			"--working-directory",
-			workingDir,
-			"--command",
-			executable,
-		)
-
-		cmd.Env = env
-
-		if err := cmd.Start(); err == nil {
-			return nil
-		}
-	}
-
-	// --------------------------------------------------------
-	// xterm
-	// --------------------------------------------------------
-
-	if terminal, err := exec.LookPath(
-		"xterm",
-	); err == nil {
-
-		cmd := exec.Command(
-			terminal,
-			"-e",
-			executable,
-		)
-
-		cmd.Dir = workingDir
-		cmd.Env = env
-
-		if err := cmd.Start(); err == nil {
-			return nil
-		}
-	}
-
-	return fmt.Errorf(
-		"no supported Linux terminal emulator was found",
-	)
-}
-
-// ============================================================
-// macOS
-// ============================================================
-
-func openMacTerminal(
-	executable string,
-	workingDir string,
-) error {
-
-	env := zebraChildEnvironment()
-
-	// --------------------------------------------------------
-	// Build shell command
-	// --------------------------------------------------------
-
-	command := "cd " +
-		shellQuote(workingDir) +
-		" && " +
-		shellQuote(executable)
-
-	// --------------------------------------------------------
-	// Escape for AppleScript
-	// --------------------------------------------------------
-
-	appleScriptCommand := escapeAppleScript(command)
-
-	script := fmt.Sprintf(
-		`tell application "Terminal"
-			activate
-			do script "%s"
-		end tell`,
-		appleScriptCommand,
-	)
+if terminal, err := exec.LookPath(
+	"x-terminal-emulator",
+); err == nil {
 
 	cmd := exec.Command(
-		"osascript",
-		"-e",
-		script,
+		terminal,
+		"--working-directory",
+		workingDir,
+		"--",
+		executable,
+	)
+
+	cmd.Dir = workingDir
+	cmd.Env = env
+
+	if err := cmd.Start(); err == nil {
+		_ = cmd.Process.Release()
+		return nil
+	}
+}
+
+// ---------------------------------------------------------
+// GNOME Terminal
+// ---------------------------------------------------------
+
+if terminal, err := exec.LookPath(
+	"gnome-terminal",
+); err == nil {
+
+	cmd := exec.Command(
+		terminal,
+		"--working-directory",
+		workingDir,
+		"--",
+		executable,
 	)
 
 	cmd.Env = env
 
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf(
-			"unable to open macOS Terminal.app: %w",
-			err,
-		)
+	if err := cmd.Start(); err == nil {
+		_ = cmd.Process.Release()
+		return nil
 	}
+}
 
-	return nil
+// ---------------------------------------------------------
+// KDE Konsole
+// ---------------------------------------------------------
+
+if terminal, err := exec.LookPath(
+	"konsole",
+); err == nil {
+
+	cmd := exec.Command(
+		terminal,
+		"--workdir",
+		workingDir,
+		"-e",
+		executable,
+	)
+
+	cmd.Env = env
+
+	if err := cmd.Start(); err == nil {
+		_ = cmd.Process.Release()
+		return nil
+	}
+}
+
+// ---------------------------------------------------------
+// XFCE Terminal
+// ---------------------------------------------------------
+
+if terminal, err := exec.LookPath(
+	"xfce4-terminal",
+); err == nil {
+
+	cmd := exec.Command(
+		terminal,
+		"--working-directory",
+		workingDir,
+		"--command",
+		executable,
+	)
+
+	cmd.Env = env
+
+	if err := cmd.Start(); err == nil {
+		_ = cmd.Process.Release()
+		return nil
+	}
+}
+
+// ---------------------------------------------------------
+// xterm
+// ---------------------------------------------------------
+
+if terminal, err := exec.LookPath("xterm"); err == nil {
+
+	cmd := exec.Command(
+		terminal,
+		"-e",
+		executable,
+	)
+
+	cmd.Dir = workingDir
+	cmd.Env = env
+
+	if err := cmd.Start(); err == nil {
+		_ = cmd.Process.Release()
+		return nil
+	}
+}
+
+return fmt.Errorf(
+	"no supported Linux terminal emulator was found",
+)
+
+
+}
+
+// ============================================================
+// MACOS
+// ============================================================
+
+func openMacTerminal(
+executable string,
+workingDir string,
+) error {
+
+
+env := zebraChildEnvironment()
+
+script := fmt.Sprintf(
+	`tell application "Terminal"
+		activate
+		do script "cd %s && %s"
+	end tell`,
+	escapeAppleScript(
+		shellQuote(workingDir),
+	),
+	escapeAppleScript(
+		shellQuote(executable),
+	),
+)
+
+cmd := exec.Command(
+	"osascript",
+	"-e",
+	script,
+)
+
+cmd.Env = env
+
+if err := cmd.Start(); err != nil {
+	return fmt.Errorf(
+		"unable to start macOS Terminal: %w",
+		err,
+	)
+}
+
+_ = cmd.Process.Release()
+
+return nil
+
+
 }
 
 // ============================================================
@@ -563,17 +453,16 @@ func openMacTerminal(
 // ============================================================
 
 func shellQuote(value string) string {
-	if value == "" {
-		return "''"
-	}
+value = strings.ReplaceAll(
+value,
+`'`,
+`'\''`,
+)
 
-	return "'" +
-		strings.ReplaceAll(
-			value,
-			"'",
-			"'\\''",
-		) +
-		"'"
+
+return "'" + value + "'"
+
+
 }
 
 // ============================================================
@@ -581,18 +470,20 @@ func shellQuote(value string) string {
 // ============================================================
 
 func escapeAppleScript(value string) string {
+value = strings.ReplaceAll(
+value,
+`\`,
+`\\`,
+)
 
-	value = strings.ReplaceAll(
-		value,
-		"\\",
-		"\\\\",
-	)
 
-	value = strings.ReplaceAll(
-		value,
-		`"`,
-		`\"`,
-	)
+value = strings.ReplaceAll(
+	value,
+	`"`,
+	`\"`,
+)
 
-	return value
+return value
+
+
 }

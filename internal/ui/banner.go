@@ -27,19 +27,19 @@ func PrintBanner() {
 	fmt.Println()
 
 	fmt.Println(
-		BrightGreen + Bold + "  ✔ " + Reset +
-			BrightWhite + "Welcome to " + Reset +
-			BrightCyan + Bold + "Zebra" + Reset +
-			BrightWhite + " — your cross-platform command shell." + Reset,
+		BrightGreen+Bold+"  ✔ "+Reset+
+			BrightWhite+"Welcome to "+Reset+
+			BrightCyan+Bold+"Zebra"+Reset+
+			BrightWhite+" — your cross-platform command shell."+Reset,
 	)
 
 	fmt.Println()
 
 	fmt.Println(
-		BrightYellow + Bold + "  ➜ " + Reset +
-			BrightWhite + "Type " + Reset +
-			BrightCyan + Bold + "'help'" + Reset +
-			BrightWhite + " to see available commands." + Reset,
+		BrightYellow+Bold+"  ➜ "+Reset+
+			BrightWhite+"Type "+Reset+
+			BrightCyan+Bold+"'help'"+Reset+
+			BrightWhite+" to see available commands."+Reset,
 	)
 
 	fmt.Println()
@@ -70,10 +70,10 @@ func printLogo() {
 
 	for i, line := range logo {
 		fmt.Println(
-			"  " +
-				colors[i%len(colors)] +
-				Bold +
-				line +
+			"  "+
+				colors[i%len(colors)]+
+				Bold+
+				line+
 				Reset,
 		)
 	}
@@ -81,28 +81,28 @@ func printLogo() {
 	fmt.Println()
 
 	fmt.Println(
-		"  " +
-			BrightBlack +
-			"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" +
+		"  "+
+			BrightBlack+
+			"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"+
 			Reset,
 	)
 
 	fmt.Println(
-		"  " +
-			BrightCyan +
-			Bold +
-			"Z E B R A" +
-			Reset +
-			"  " +
-			BrightWhite +
-			"Cross-Platform Terminal Environment" +
+		"  "+
+			BrightCyan+
+			Bold+
+			"Z E B R A"+
+			Reset+
+			"  "+
+			BrightWhite+
+			"Cross-Platform Terminal Environment"+
 			Reset,
 	)
 
 	fmt.Println(
-		"  " +
-			BrightBlack +
-			"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" +
+		"  "+
+			BrightBlack+
+			"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"+
 			Reset,
 	)
 }
@@ -117,10 +117,10 @@ func printInfoBox() {
 	line := strings.Repeat("═", width)
 
 	fmt.Println(
-		BrightCyan +
-			"╔" +
-			line +
-			"╗" +
+		BrightCyan+
+			"╔"+
+			line+
+			"╗"+
 			Reset,
 	)
 
@@ -160,10 +160,10 @@ func printInfoBox() {
 	)
 
 	fmt.Println(
-		BrightCyan +
-			"╚" +
-			line +
-			"╝" +
+		BrightCyan+
+			"╚"+
+			line+
+			"╝"+
 			Reset,
 	)
 }
@@ -226,4 +226,3 @@ func stripANSI(text string) string {
 
 	return text
 }
-

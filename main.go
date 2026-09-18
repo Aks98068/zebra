@@ -1,182 +1,170 @@
 package main
 
 import (
-	"bufio"
-	"errors"
-	"fmt"
-	"os"
-	"strings"
+"bufio"
+"errors"
+"fmt"
+"os"
+"strings"
 
-	"zebra/internal/commands"
-	"zebra/internal/shell"
-	"zebra/internal/ui"
-	"zebra/internal/util"
+
+"zebra/internal/commands"
+"zebra/internal/shell"
+"zebra/internal/ui"
+"zebra/internal/util"
+
+
 )
-
-// ============================================================
-// ENVIRONMENT
-// ============================================================
 
 const terminalChildEnv = "ZEBRA_TERMINAL_CHILD"
 
-// ============================================================
-// MAIN
-// ============================================================
-
 func main() {
-	// --------------------------------------------------------
-	// Initialize all Zebra commands
-	// --------------------------------------------------------
+// ---------------------------------------------------------
+// Initialize Zebra commands
+// ---------------------------------------------------------
 
-	commands.Init()
 
-	// --------------------------------------------------------
-	// Detect child Zebra terminal
-	// --------------------------------------------------------
+commands.Init()
 
-	isChildTerminal := os.Getenv(terminalChildEnv) == "1"
+// ---------------------------------------------------------
+// Enable ANSI/VT processing on Windows.
+//
+// This makes colors work correctly in:
+//   - CMD
+//   - PowerShell
+//   - VS Code terminal
+//   - Windows Terminal
+// ---------------------------------------------------------
 
-	// --------------------------------------------------------
-	// Automatically open Zebra in a new terminal
-	// --------------------------------------------------------
-	//
-	// Only when:
-	//
-	// 1. Zebra is not already a child terminal.
-	// 2. No command-line arguments were supplied.
-	//
-	// Example:
-	//
-	//     zebra.exe
-	//
-	// Zebra will open in a new terminal and start in the
-	// user's home directory.
-	// --------------------------------------------------------
+ui.EnableANSI()
 
-	if !isChildTerminal && len(os.Args) == 1 {
-		initialDir := getInitialDirectory()
+// ---------------------------------------------------------
+// Determine whether this is a child Zebra terminal.
+// ---------------------------------------------------------
 
-		if err := commands.OpenZebraTerminalAt(initialDir); err != nil {
-			fmt.Fprintln(
-				os.Stderr,
-				"Terminal error:",
-				err,
-			)
+isChildTerminal := os.Getenv(terminalChildEnv) == "1"
 
-			fmt.Fprintln(
-				os.Stderr,
-				"Starting Zebra in the current terminal...",
-			)
-		} else {
-			return
-		}
-	}
+// ---------------------------------------------------------
+// COMMAND-LINE MODE
+//
+// Examples:
+//
+//     zebra pwd
+//     zebra ls
+//     zebra folder test
+//     zebra file test.txt
+//
+// These execute directly inside the terminal that
+// launched Zebra.
+// ---------------------------------------------------------
 
-	// --------------------------------------------------------
-	// Determine Zebra's virtual working directory
-	// --------------------------------------------------------
-	//
-	// This is Zebra's own current directory.
-	//
-	// It does NOT depend on the directory where zebra.exe
-	// is installed.
-	// --------------------------------------------------------
+args := os.Args[1:]
 
-	currentDir := getInitialDirectory()
+if len(args) > 0 {
+	runCommand(args)
+	return
+}
 
-	// --------------------------------------------------------
-	// Command-line mode
-	// --------------------------------------------------------
-	//
-	// Examples:
-	//
-	//     zebra.exe pwd
-	//     zebra.exe ls
-	//     zebra.exe get PATH
-	//
-	// --------------------------------------------------------
+// ---------------------------------------------------------
+// INTERACTIVE MODE
+//
+// We intentionally do NOT automatically create another
+// terminal window here.
+//
+// This is important because:
+//
+//     zebra.exe
+//
+// should behave like:
+//
+//     git
+//     python
+//     node
+//     ssh
+//
+// and directly become an interactive CLI.
+//
+// The "terminal" command can explicitly create another
+// Zebra terminal.
+// ---------------------------------------------------------
 
-	cliArgs := os.Args[1:]
+_ = isChildTerminal
 
-	if len(cliArgs) > 0 {
-		scanner := bufio.NewScanner(os.Stdin)
+// Start in the directory from which Zebra was launched.
+currentDir := getStartupDirectory()
 
-		ctx := &commands.Context{
-			CurrentDir: &currentDir,
-			Scanner:    scanner,
-		}
+runInteractive(&currentDir)
 
-		commands.Execute(
-			cliArgs,
-			ctx,
-		)
 
-		return
-	}
-
-	// --------------------------------------------------------
-	// Interactive Zebra shell
-	// --------------------------------------------------------
-
-	runInteractive(&currentDir)
 }
 
 // ============================================================
-// INITIAL DIRECTORY
-// ============================================================
-//
-// Zebra starts in the user's HOME directory.
-//
-// Windows:
-//
-//     C:\Users\ACER
-//
-// Linux:
-//
-//     /home/username
-//
-// macOS:
-//
-//     /Users/username
-//
-// This is independent of where zebra.exe is installed.
-//
-// Example:
-//
-//     Zebra executable:
-//         D:\Programs\Zebra\zebra.exe
-//
-//     Initial Zebra directory:
-//         C:\Users\ACER
-//
+// COMMAND MODE
 // ============================================================
 
-func getInitialDirectory() string {
-	// --------------------------------------------------------
-	// First choice: user's home directory
-	// --------------------------------------------------------
+func runCommand(args []string) {
+scanner := bufio.NewScanner(os.Stdin)
 
-	home, err := os.UserHomeDir()
 
-	if err == nil && home != "" {
-		return home
+currentDir := getStartupDirectory()
+
+ctx := &commands.Context{
+	CurrentDir: &currentDir,
+	Scanner:    scanner,
+}
+
+commands.Execute(args, ctx)
+
+
+}
+
+// ============================================================
+// STARTUP DIRECTORY
+// ============================================================
+//
+// IMPORTANT:
+//
+// Do NOT use os.UserHomeDir() here.
+//
+// If the user executes:
+//
+//     C:\projects\myapp> zebra
+//
+// Zebra should start at:
+//
+//     C:\projects\myapp
+//
+// not:
+//
+//     C:\Users\Admin
+//
+// This makes Zebra behave like a real CLI application.
+// ============================================================
+
+func getStartupDirectory() string {
+current, err := os.Getwd()
+
+
+if err == nil && current != "" {
+	absolute, absErr := os.Getwd()
+
+	if absErr == nil && absolute != "" {
+		return absolute
 	}
 
-	// --------------------------------------------------------
-	// Fallback: current operating-system directory
-	// --------------------------------------------------------
+	return current
+}
 
-	current, err := os.Getwd()
+// Extremely unusual fallback.
+home, err := os.UserHomeDir()
 
-	if err == nil && current != "" {
-		return current
-	}
+if err == nil && home != "" {
+	return home
+}
 
-	// --------------------------------------------------------
-	// Final fallback
-	// --------------------------------------------------------
+return "."
 
-	return "."
+
 }
 
 // ============================================================
@@ -184,190 +172,117 @@ func getInitialDirectory() string {
 // ============================================================
 
 func runInteractive(currentDir *string) {
-	// --------------------------------------------------------
-	// Banner
-	// --------------------------------------------------------
+ui.PrintBanner()
 
-	ui.PrintBanner()
 
-	// --------------------------------------------------------
-	// Scanner
-	// --------------------------------------------------------
-	//
-	// Scanner is still required by commands that need
-	// additional interactive input, such as:
-	//
-	//     write
-	//
-	// The main command line is handled by shell.Editor.
-	// --------------------------------------------------------
+scanner := bufio.NewScanner(os.Stdin)
 
-	scanner := bufio.NewScanner(os.Stdin)
+ctx := &commands.Context{
+	CurrentDir: currentDir,
+	Scanner:    scanner,
+}
 
-	ctx := &commands.Context{
-		CurrentDir: currentDir,
-		Scanner:    scanner,
+editor := shell.NewEditor(
+	commands.Names(),
+)
+
+for {
+	prompt := buildPrompt(currentDir)
+
+	line, err := editor.ReadLine(prompt)
+
+	// -----------------------------------------------------
+	// Ctrl+C
+	// -----------------------------------------------------
+
+	if errors.Is(err, shell.ErrInterrupted) {
+		continue
 	}
 
-	// --------------------------------------------------------
-	// Create interactive line editor
-	// --------------------------------------------------------
-	//
-	// Provides:
-	//
-	//     Arrow keys
-	//     History
-	//     Cursor movement
-	//     Home
-	//     End
-	//     Backspace
-	//     Delete
-	//     Tab completion
-	//     Ctrl+C
-	//     Ctrl+D
-	//     Ctrl+L
-	//
-	// --------------------------------------------------------
+	// -----------------------------------------------------
+	// Ctrl+D / EOF
+	// -----------------------------------------------------
 
-	editor := shell.NewEditor(
-		commands.Names(),
-	)
-
-	// --------------------------------------------------------
-	// Main shell loop
-	// --------------------------------------------------------
-
-	for {
-		// ----------------------------------------------------
-		// Build colorful prompt
-		// ----------------------------------------------------
-
-		prompt := buildPrompt(currentDir)
-
-		// ----------------------------------------------------
-		// Read command
-		// ----------------------------------------------------
-
-		line, err := editor.ReadLine(prompt)
-
-		// ----------------------------------------------------
-		// Ctrl+C
-		// ----------------------------------------------------
-
-		if errors.Is(err, shell.ErrInterrupted) {
-			continue
-		}
-
-		// ----------------------------------------------------
-		// Ctrl+D
-		// ----------------------------------------------------
-
-		if errors.Is(err, shell.ErrEOF) {
-			fmt.Println(
-				ui.BrightYellow +
-					"exit" +
-					ui.Reset,
-			)
-
-			return
-		}
-
-		// ----------------------------------------------------
-		// Other input errors
-		// ----------------------------------------------------
-
-		if err != nil {
-			fmt.Fprintln(
-				os.Stderr,
-				ui.BrightRed+"shell input error:"+ui.Reset,
-				err,
-			)
-
-			return
-		}
-
-		// ----------------------------------------------------
-		// Remove surrounding whitespace
-		// ----------------------------------------------------
-
-		line = strings.TrimSpace(line)
-
-		if line == "" {
-			continue
-		}
-
-		// ----------------------------------------------------
-		// Tokenize command
-		// ----------------------------------------------------
-
-		tokens := util.Tokenize(line)
-
-		if len(tokens) == 0 {
-			continue
-		}
-
-		// ----------------------------------------------------
-		// Execute Zebra command
-		// ----------------------------------------------------
-
-		shouldExit := commands.Execute(
-			tokens,
-			ctx,
+	if errors.Is(err, shell.ErrEOF) {
+		fmt.Println(
+			ui.BrightYellow +
+				"exit" +
+				ui.Reset,
 		)
 
-		// ----------------------------------------------------
-		// Exit command
-		// ----------------------------------------------------
+		return
+	}
 
-		if shouldExit {
-			return
-		}
+	// -----------------------------------------------------
+	// Other shell errors
+	// -----------------------------------------------------
+
+	if err != nil {
+		fmt.Fprintln(
+			os.Stderr,
+			ui.BrightRed+"shell input error:"+ui.Reset,
+			err,
+		)
+
+		return
+	}
+
+	line = strings.TrimSpace(line)
+
+	if line == "" {
+		continue
+	}
+
+	// -----------------------------------------------------
+	// Tokenize command
+	// -----------------------------------------------------
+
+	tokens := util.Tokenize(line)
+
+	if len(tokens) == 0 {
+		continue
+	}
+
+	// -----------------------------------------------------
+	// Execute
+	// -----------------------------------------------------
+
+	shouldExit := commands.Execute(
+		tokens,
+		ctx,
+	)
+
+	if shouldExit {
+		return
 	}
 }
 
+
+}
+
 // ============================================================
-// ZEBRA PROMPT
-// ============================================================
-//
-// Example:
-//
-//     zebra (C:\Users\ACER) >
-//
-// Colors:
-//
-//     zebra       → cyan
-//     ( )         → gray
-//     directory   → green
-//     >           → magenta
-//
+// PROMPT
 // ============================================================
 
 func buildPrompt(currentDir *string) string {
-	return ui.BrightCyan +
-		ui.Bold +
-		"zebra" +
-		ui.Reset +
-
-		" " +
-
-		ui.BrightBlack +
-		"(" +
-		ui.Reset +
-
-		ui.BrightGreen +
-		*currentDir +
-		ui.Reset +
-
-		ui.BrightBlack +
-		")" +
-		ui.Reset +
-
-		" " +
-
-		ui.BrightMagenta +
-		ui.Bold +
-		">" +
-		ui.Reset +
-
-		" "
+return ui.BrightCyan +
+ui.Bold +
+"zebra" +
+ui.Reset +
+" " +
+ui.BrightBlack +
+"(" +
+ui.Reset +
+ui.BrightGreen +
+*currentDir +
+ui.Reset +
+ui.BrightBlack +
+")" +
+ui.Reset +
+" " +
+ui.BrightMagenta +
+ui.Bold +
+">" +
+ui.Reset +
+" "
 }
