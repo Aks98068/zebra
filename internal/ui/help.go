@@ -257,6 +257,11 @@ fmt.Println("  tmpfile [prefix]                      Create a temporary file")
 fmt.Println("  tmpdir [prefix]                       Create a temporary directory")
 fmt.Println("  tempdir                               Show system temp directory")
 
+
+fmt.Println("  dns        perform DNS lookups")
+fmt.Println("             dns <domain> [-type A|AAAA|MX|NS|TXT|CNAME|ALL] [-o <file>]")
+fmt.Println("             dns reverse <ip> [-o <file>]")
+
 fmt.Println()
 
 }

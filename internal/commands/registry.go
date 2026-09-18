@@ -393,6 +393,16 @@ Register(Command{
 	},
 })
 
+Register(Command{
+	Name:        "dns",
+	Aliases:     []string{"dnslookup"},
+	Description: "perform DNS lookups",
+	Usage:       "dns <domain> [-type A|AAAA|MX|NS|TXT|CNAME|ALL] [-o <file>]",
+	Run: func(args []string, ctx *Context) bool {
+		return dnss.DNSLookup(args)
+	},
+})
+
 
 
 
