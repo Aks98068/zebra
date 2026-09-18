@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"zebra/internal/commands/recon/dnss"
+	"zebra/internal/commands/recon/whois"
 )
 
 var registry = make(map[string]Command)
@@ -401,6 +402,16 @@ Register(Command{
 	Run: func(args []string, ctx *Context) bool {
 		return dnss.DNSLookup(args)
 	},
+})
+
+Register(Command{
+    Name:        "whois",
+    Aliases:     []string{"whoislookup"},
+    Description: "perform WHOIS lookup",
+    Usage:       "whois <domain> [-server <server>] [-timeout <duration>] [-o <file>]",
+    Run: func(args []string, ctx *Context) bool {
+        return whois.WHOISLookup(args)
+    },
 })
 
 
