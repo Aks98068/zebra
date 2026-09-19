@@ -4,6 +4,7 @@ go 1.27.1
 
 require (
 	github.com/shirou/gopsutil/v3 v3.24.5
+	golang.org/x/net v0.59.0
 	golang.org/x/term v0.46.0
 )
 

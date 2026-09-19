@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"zebra/internal/commands/recon/dnss"
+	https "zebra/internal/commands/recon/http"
 	"zebra/internal/commands/recon/whois"
 )
 
@@ -380,42 +381,49 @@ func Init() {
 		Run:         zebraVersion,
 	})
 
-// ================================
-// RECON COMMANDS
-// ================================
+	// ================================
+	// RECON COMMANDS
+	// ================================
 
-Register(Command{
-	Name:        "dns",
-	Aliases:     []string{"dnslookup"},
-	Description: "perform DNS lookup and reverse DNS lookup",
-	Usage:       "dns <domain> | dns reverse <ip>",
-	Run: func(args []string, ctx *Context) bool {
-		return dnss.DNSLookup(args)
-	},
-})
+	Register(Command{
+		Name:        "dns",
+		Aliases:     []string{"dnslookup"},
+		Description: "perform DNS lookup and reverse DNS lookup",
+		Usage:       "dns <domain> | dns reverse <ip>",
+		Run: func(args []string, ctx *Context) bool {
+			return dnss.DNSLookup(args)
+		},
+	})
 
-Register(Command{
-	Name:        "dns",
-	Aliases:     []string{"dnslookup"},
-	Description: "perform DNS lookups",
-	Usage:       "dns <domain> [-type A|AAAA|MX|NS|TXT|CNAME|ALL] [-o <file>]",
-	Run: func(args []string, ctx *Context) bool {
-		return dnss.DNSLookup(args)
-	},
-})
+	Register(Command{
+		Name:        "dns",
+		Aliases:     []string{"dnslookup"},
+		Description: "perform DNS lookups",
+		Usage:       "dns <domain> [-type A|AAAA|MX|NS|TXT|CNAME|ALL] [-o <file>]",
+		Run: func(args []string, ctx *Context) bool {
+			return dnss.DNSLookup(args)
+		},
+	})
 
-Register(Command{
-    Name:        "whois",
-    Aliases:     []string{"whoislookup"},
-    Description: "perform WHOIS lookup",
-    Usage:       "whois <domain> [-server <server>] [-timeout <duration>] [-o <file>]",
-    Run: func(args []string, ctx *Context) bool {
-        return whois.WHOISLookup(args)
-    },
-})
+	Register(Command{
+		Name:        "whois",
+		Aliases:     []string{"whoislookup"},
+		Description: "perform WHOIS lookup",
+		Usage:       "whois <domain> [-server <server>] [-timeout <duration>] [-o <file>]",
+		Run: func(args []string, ctx *Context) bool {
+			return whois.WHOISLookup(args)
+		},
+	})
 
-
-
+	Register(Command{
+		Name:        "http",
+		Aliases:     []string{"httprecon", "web", "webrecon"},
+		Description: "perform comprehensive HTTP/HTTPS reconnaissance",
+		Usage:       "http <url> [-method <method>] [-timeout <duration>] [-follow|-no-follow] [-max-redirects <number>] [-user-agent <string>] [-header <key:value>] [-proxy <url>] [-insecure] [-body-limit <size>] [-o <file>]",
+		Run: func(args []string, ctx *Context) bool {
+			return https.HTTPRecon(args)
+		},
+	})
 
 }
 
