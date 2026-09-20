@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"zebra/internal/commands/recon/dnss"
-	https "zebra/internal/commands/recon/http"
 	"zebra/internal/commands/recon/whois"
 )
 
@@ -414,9 +413,6 @@ func Init() {
 			return whois.WHOISLookup(args)
 		},
 	})
-
-
-
 
 }
 
