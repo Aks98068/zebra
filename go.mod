@@ -4,8 +4,6 @@ go 1.27.1
 
 require (
 	github.com/shirou/gopsutil/v3 v3.24.5
-	github.com/yusufpapurcu/wmi v1.2.4
-	golang.org/x/sys v0.48.0
 	golang.org/x/term v0.46.0
 )
 

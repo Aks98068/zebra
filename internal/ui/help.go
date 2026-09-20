@@ -183,85 +183,189 @@ func PrintHelp() {
 		"  quit                                  Alias for exit",
 	)
 
+	// ========================================================
+	// SYMLINKS
+	// ========================================================
+
+	fmt.Println(BrightYellow + Bold + "Symlinks & Links:" + Reset)
+
+	fmt.Println("  symlink <target> <link>               Create a symbolic link")
+	fmt.Println("  ln-s <target> <link>                  Alias for symlink")
+	fmt.Println("  readlink <link>                       Read symlink target")
+	fmt.Println("  hardlink <source> <destination>       Create a hard link")
+	fmt.Println("  ln <source> <destination>             Alias for hardlink")
+
+	fmt.Println()
 
 	// ========================================================
-// SYMLINKS
-// ========================================================
+	// PERMISSIONS
+	// ========================================================
 
-fmt.Println(BrightYellow + Bold + "Symlinks & Links:" + Reset)
+	fmt.Println(BrightYellow + Bold + "Permissions & Ownership:" + Reset)
 
-fmt.Println("  symlink <target> <link>               Create a symbolic link")
-fmt.Println("  ln-s <target> <link>                  Alias for symlink")
-fmt.Println("  readlink <link>                       Read symlink target")
-fmt.Println("  hardlink <source> <destination>       Create a hard link")
-fmt.Println("  ln <source> <destination>             Alias for hardlink")
+	fmt.Println("  chmod <permissions> <file>            Change file permissions")
+	fmt.Println("  chown <uid> <gid> <file>              Change file owner")
+	fmt.Println("  lchown <uid> <gid> <link>             Change symlink owner")
 
-fmt.Println()
+	fmt.Println()
 
-// ========================================================
-// PERMISSIONS
-// ========================================================
+	// ========================================================
+	// STDIO
+	// ========================================================
 
-fmt.Println(BrightYellow + Bold + "Permissions & Ownership:" + Reset)
+	fmt.Println(BrightYellow + Bold + "Stdio:" + Reset)
 
-fmt.Println("  chmod <permissions> <file>            Change file permissions")
-fmt.Println("  chown <uid> <gid> <file>              Change file owner")
-fmt.Println("  lchown <uid> <gid> <link>             Change symlink owner")
+	fmt.Println("  stdout <message>                      Write to standard output")
+	fmt.Println("  stderr <message>                      Write to standard error")
+	fmt.Println("  stdin                                 Read from standard input")
 
-fmt.Println()
+	fmt.Println()
 
-// ========================================================
-// STDIO
-// ========================================================
+	// ========================================================
+	// SIGNALS
+	// ========================================================
 
-fmt.Println(BrightYellow + Bold + "Stdio:" + Reset)
+	fmt.Println(BrightYellow + Bold + "Signals & Exit:" + Reset)
 
-fmt.Println("  stdout <message>                      Write to standard output")
-fmt.Println("  stderr <message>                      Write to standard error")
-fmt.Println("  stdin                                 Read from standard input")
+	fmt.Println("  signals                               Listen for OS signals")
+	fmt.Println("  exitcode <code>                       Exit with specific code")
 
-fmt.Println()
+	fmt.Println()
 
-// ========================================================
-// SIGNALS
-// ========================================================
+	// ========================================================
+	// SYSTEM INFO
+	// ========================================================
 
-fmt.Println(BrightYellow + Bold + "Signals & Exit:" + Reset)
+	fmt.Println(BrightYellow + Bold + "System Info:" + Reset)
 
-fmt.Println("  signals                               Listen for OS signals")
-fmt.Println("  exitcode <code>                       Exit with specific code")
+	fmt.Println("  sysinfo                               Show all system info")
+	fmt.Println("  hostname                              Show machine hostname")
+	fmt.Println("  homedir                               Show user home directory")
+	fmt.Println("  cachedir                              Show user cache directory")
+	fmt.Println("  configdir                             Show user config directory")
 
-fmt.Println()
+	fmt.Println()
 
-// ========================================================
-// SYSTEM INFO
-// ========================================================
+	// ========================================================
+	// TEMP FILES
+	// ========================================================
 
-fmt.Println(BrightYellow + Bold + "System Info:" + Reset)
+	fmt.Println(BrightYellow + Bold + "Temp Files:" + Reset)
 
-fmt.Println("  sysinfo                               Show all system info")
-fmt.Println("  hostname                              Show machine hostname")
-fmt.Println("  homedir                               Show user home directory")
-fmt.Println("  cachedir                              Show user cache directory")
-fmt.Println("  configdir                             Show user config directory")
+	fmt.Println("  tmpfile [prefix]                      Create a temporary file")
+	fmt.Println("  tmpdir [prefix]                       Create a temporary directory")
+	fmt.Println("  tempdir                               Show system temp directory")
 
-fmt.Println()
+	fmt.Println("  dns        perform DNS lookups")
+	fmt.Println("             dns <domain> [-type A|AAAA|MX|NS|TXT|CNAME|ALL] [-o <file>]")
+	fmt.Println("             dns reverse <ip> [-o <file>]")
 
-// ========================================================
-// TEMP FILES
-// ========================================================
+	// ========================================================
+	// RECONNAISSANCE
+	// ========================================================
 
-fmt.Println(BrightYellow + Bold + "Temp Files:" + Reset)
+	fmt.Println(BrightYellow + Bold + "Reconnaissance:" + Reset)
 
-fmt.Println("  tmpfile [prefix]                      Create a temporary file")
-fmt.Println("  tmpdir [prefix]                       Create a temporary directory")
-fmt.Println("  tempdir                               Show system temp directory")
+	fmt.Println(
+		"  whois <domain|ip>                     Perform WHOIS lookup",
+	)
 
+	fmt.Println(
+		"  whoislookup <domain|ip>               Alias for whois",
+	)
 
-fmt.Println("  dns        perform DNS lookups")
-fmt.Println("             dns <domain> [-type A|AAAA|MX|NS|TXT|CNAME|ALL] [-o <file>]")
-fmt.Println("             dns reverse <ip> [-o <file>]")
+	fmt.Println(
+		"  http <url>                            Perform HTTP/HTTPS reconnaissance",
+	)
 
-fmt.Println()
+	fmt.Println(
+		"  httprecon <url>                       Alias for http",
+	)
+
+	fmt.Println(
+		"  web <url>                             Alias for http",
+	)
+
+	fmt.Println(
+		"  webrecon <url>                        Alias for http",
+	)
+
+	fmt.Println()
+
+	fmt.Println(
+		BrightCyan + Bold +
+			"HTTP Recon Options:" +
+			Reset,
+	)
+
+	fmt.Println(
+		"  http <url> [-method <method>]         Specify HTTP request method",
+	)
+
+	fmt.Println(
+		"  http <url> [-timeout <duration>]      Set request timeout",
+	)
+
+	fmt.Println(
+		"  http <url> [-follow]                  Follow redirects",
+	)
+
+	fmt.Println(
+		"  http <url> [-no-follow]               Disable redirect following",
+	)
+
+	fmt.Println(
+		"  http <url> [-max-redirects <number>]  Set maximum redirects",
+	)
+
+	fmt.Println(
+		"  http <url> [-user-agent <string>]     Set custom User-Agent",
+	)
+
+	fmt.Println(
+		"  http <url> [-header <key:value>]      Add custom HTTP header",
+	)
+
+	fmt.Println(
+		"  http <url> [-proxy <url>]             Use HTTP/HTTPS proxy",
+	)
+
+	fmt.Println(
+		"  http <url> [-insecure]                Disable TLS verification",
+	)
+
+	fmt.Println(
+		"  http <url> [-body-limit <size>]       Limit response body size",
+	)
+
+	fmt.Println(
+		"  http <url> [-o <file>]                Save reconnaissance results",
+	)
+
+	fmt.Println()
+
+	fmt.Println(
+		BrightCyan + Bold +
+			"HTTP Recon Example:" +
+			Reset,
+	)
+
+	fmt.Println(
+		"  http example.com                     Run full HTTP reconnaissance",
+	)
+
+	fmt.Println(
+		"  http https://example.com -follow     Follow redirects",
+	)
+
+	fmt.Println(
+		"  http example.com -timeout 30s        Set 30 second timeout",
+	)
+
+	fmt.Println(
+		"  http example.com -o report.json      Save results as JSON",
+	)
+
+	fmt.Println()
 
 }
