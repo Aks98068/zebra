@@ -7,18 +7,18 @@ import (
 	"zebra/internal/commands/recon/whois"
 )
 
-var registry = make(map[string]Command)
+var registrys = make(map[string]Command)
 
 func Register(command Command) {
-	registry[command.Name] = command
+	registrys[command.Name] = command
 
 	for _, alias := range command.Aliases {
-		registry[alias] = command
+		registrys[alias] = command
 	}
 }
 
 func Init() {
-	registry = make(map[string]Command)
+	registrys = make(map[string]Command)
 
 	// =========================================================
 	// Filesystem commands
@@ -380,42 +380,39 @@ func Init() {
 		Run:         zebraVersion,
 	})
 
-// ================================
-// RECON COMMANDS
-// ================================
+	// ================================
+	// RECON COMMANDS
+	// ================================
 
-Register(Command{
-	Name:        "dns",
-	Aliases:     []string{"dnslookup"},
-	Description: "perform DNS lookup and reverse DNS lookup",
-	Usage:       "dns <domain> | dns reverse <ip>",
-	Run: func(args []string, ctx *Context) bool {
-		return dnss.DNSLookup(args)
-	},
-})
+	Register(Command{
+		Name:        "dns",
+		Aliases:     []string{"dnslookup"},
+		Description: "perform DNS lookup and reverse DNS lookup",
+		Usage:       "dns <domain> | dns reverse <ip>",
+		Run: func(args []string, ctx *Context) bool {
+			return dnss.DNSLookup(args)
+		},
+	})
 
-Register(Command{
-	Name:        "dns",
-	Aliases:     []string{"dnslookup"},
-	Description: "perform DNS lookups",
-	Usage:       "dns <domain> [-type A|AAAA|MX|NS|TXT|CNAME|ALL] [-o <file>]",
-	Run: func(args []string, ctx *Context) bool {
-		return dnss.DNSLookup(args)
-	},
-})
+	Register(Command{
+		Name:        "dns",
+		Aliases:     []string{"dnslookup"},
+		Description: "perform DNS lookups",
+		Usage:       "dns <domain> [-type A|AAAA|MX|NS|TXT|CNAME|ALL] [-o <file>]",
+		Run: func(args []string, ctx *Context) bool {
+			return dnss.DNSLookup(args)
+		},
+	})
 
-Register(Command{
-    Name:        "whois",
-    Aliases:     []string{"whoislookup"},
-    Description: "perform WHOIS lookup",
-    Usage:       "whois <domain> [-server <server>] [-timeout <duration>] [-o <file>]",
-    Run: func(args []string, ctx *Context) bool {
-        return whois.WHOISLookup(args)
-    },
-})
-
-
-
+	Register(Command{
+		Name:        "whois",
+		Aliases:     []string{"whoislookup"},
+		Description: "perform WHOIS lookup",
+		Usage:       "whois <domain> [-server <server>] [-timeout <duration>] [-o <file>]",
+		Run: func(args []string, ctx *Context) bool {
+			return whois.WHOISLookup(args)
+		},
+	})
 
 }
 
@@ -431,7 +428,7 @@ func Execute(tokens []string, ctx *Context) bool {
 	commandName := tokens[0]
 	args := tokens[1:]
 
-	command, exists := registry[commandName]
+	command, exists := registrys[commandName]
 
 	if !exists {
 		fmt.Println("unknown command:", commandName)
@@ -451,11 +448,11 @@ func Execute(tokens []string, ctx *Context) bool {
 // ============================================================
 
 func Names() []string {
-	names := make([]string, 0, len(registry))
+	names := make([]string, 0, len(registrys))
 
 	seen := make(map[string]bool)
 
-	for _, command := range registry {
+	for _, command := range registrys {
 		if seen[command.Name] {
 			continue
 		}
