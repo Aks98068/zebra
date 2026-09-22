@@ -1,3 +1,6 @@
+//go:build windows
+// +build windows
+
 package ui
 
 import (
@@ -41,12 +44,12 @@ func enableWindowsANSI(file *os.File) {
 	getConsoleMode := kernel32.NewProc("GetConsoleMode")
 	setConsoleMode := kernel32.NewProc("SetConsoleMode")
 
-	handle := syscall.Handle(file.Fd())
+	handle := uintptr(file.Fd())
 
 	var mode uint32
 
 	ret, _, _ := getConsoleMode.Call(
-		uintptr(handle),
+		handle,
 		uintptr(unsafe.Pointer(&mode)),
 	)
 

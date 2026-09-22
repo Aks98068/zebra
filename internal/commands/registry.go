@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"zebra/internal/commands/recon/dnss"
+	"zebra/internal/commands/recon/https"
 	"zebra/internal/commands/recon/whois"
 )
 
@@ -380,6 +381,13 @@ func Init() {
 		Run:         zebraVersion,
 	})
 
+	Register(Command{
+		Name:        "systeminfo",
+		Aliases:     []string{"systeminformation"},
+		Description: "display all the information about computers",
+		Usage:       "systeminfo",
+		Run:         SystemInfo,
+	})
 	// ================================
 	// RECON COMMANDS
 	// ================================
@@ -401,6 +409,16 @@ func Init() {
 		Usage:       "dns <domain> [-type A|AAAA|MX|NS|TXT|CNAME|ALL] [-o <file>]",
 		Run: func(args []string, ctx *Context) bool {
 			return dnss.DNSLookup(args)
+		},
+	})
+
+	Register(Command{
+		Name:        "http",
+		Aliases:     []string{"httprecon", "http-recon"},
+		Description: "perform HTTP/HTTPS reconnaissance",
+		Usage:       "http <url> [-method GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT] [-timeout <duration>] [-header <key:value>] [-proxy <url>] [-insecure] [-no-follow] [-max-redirects <n>] [-body-limit <size>] [-o <file>]",
+		Run: func(args []string, ctx *Context) bool {
+			return https.HTTPRecon(args)
 		},
 	})
 
