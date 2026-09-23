@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"os"
 	"strconv"
@@ -27,6 +29,9 @@ type HTTPConfig struct {
 	InsecureTLS     bool
 	BodyLimit       int64
 	OutputFile      string
+	Body            string
+	BodyFile        string
+	ContentType     string
 }
 
 type HTTPResult struct {
@@ -48,6 +53,12 @@ type HTTPResult struct {
 	Technologies    []string
 	Body            string
 	BodyTruncated   bool
+	URL             URLInfo
+	DNS             DNSInfo
+	Timing          TimingInfo
+	Methods         MethodInfo
+	Server          string
+	PoweredBy       string
 }
 
 type HTTPCookie struct {
@@ -96,6 +107,32 @@ type SecurityHeaders struct {
 	CrossOriginResourcePolicy string
 }
 
+type URLInfo struct {
+	Scheme   string
+	Host     string
+	Hostname string
+	Port     string
+	Path     string
+	Query    string
+}
+
+type TimingInfo struct {
+	DNSLookup    time.Duration
+	TCPConnect   time.Duration
+	TLSHandshake time.Duration
+	TTFB         time.Duration
+	Total        time.Duration
+}
+
+type MethodInfo struct {
+	Advertised []string
+	Source     string
+}
+
+type DNSInfo struct {
+	Addresses []string
+}
+
 // ============================================================
 // HTTP RECON
 // ============================================================
@@ -123,6 +160,9 @@ func HTTPRecon(args []string) bool {
 	bodyLimit := int64(0)
 
 	outputFile := ""
+	requestBody := ""
+	bodyFile := ""
+	contentType := ""
 
 	for i := 1; i < len(args); i++ {
 		switch args[i] {
@@ -136,7 +176,7 @@ func HTTPRecon(args []string) bool {
 			methodValue := strings.ToUpper(args[i+1])
 
 			switch methodValue {
-			case "GET", "POST", "HEAD", "OPTIONS":
+			case "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE", "CONNECT":
 				method = methodValue
 
 			default:
@@ -144,6 +184,30 @@ func HTTPRecon(args []string) bool {
 				return false
 			}
 
+			i++
+
+		case "-body":
+			if i+1 >= len(args) {
+				fmt.Println("missing value for body")
+				return false
+			}
+			requestBody = args[i+1]
+			i++
+
+		case "-body-file":
+			if i+1 >= len(args) {
+				fmt.Println("missing value for body file")
+				return false
+			}
+			bodyFile = args[i+1]
+			i++
+
+		case "-content-type":
+			if i+1 >= len(args) {
+				fmt.Println("missing value for content type")
+				return false
+			}
+			contentType = args[i+1]
 			i++
 
 		case "-timeout":
@@ -263,6 +327,27 @@ func HTTPRecon(args []string) bool {
 		InsecureTLS:     insecureTLS,
 		BodyLimit:       bodyLimit,
 		OutputFile:      outputFile,
+		Body:            requestBody,
+		BodyFile:        bodyFile,
+		ContentType:     contentType,
+	}
+
+	if config.Body != "" && config.BodyFile != "" {
+		fmt.Println("use either -body or -body-file, not both")
+		return false
+	}
+
+	if config.BodyFile != "" {
+		data, err := os.ReadFile(config.BodyFile)
+		if err != nil {
+			fmt.Println("body file error:", err)
+			return false
+		}
+		config.Body = string(data)
+	}
+
+	if config.ContentType == "" && config.Body != "" {
+		config.ContentType = "application/json"
 	}
 
 	targetURL, err := parseURL(target)
@@ -271,6 +356,8 @@ func HTTPRecon(args []string) bool {
 		fmt.Println("URL error:", err)
 		return false
 	}
+
+	dnsInfo := resolveDNS(targetURL.Hostname())
 
 	transport, err := buildTransport(config)
 
@@ -297,7 +384,7 @@ func HTTPRecon(args []string) bool {
 		return false
 	}
 
-	resp, elapsed, err := executeRequest(
+	resp, elapsed, timing, err := executeRequest(
 		client,
 		req,
 	)
@@ -321,6 +408,12 @@ func HTTPRecon(args []string) bool {
 	result.Method = config.Method
 	result.ResponseTime = elapsed
 	result.Redirects = redirects
+	result.Timing = timing
+	result.URL = makeURLInfo(targetURL)
+	result.DNS = dnsInfo
+	result.Server = headerValue(result.Headers, "Server")
+	result.PoweredBy = headerValue(result.Headers, "X-Powered-By")
+	result.Methods = analyzeMethods(result.Headers)
 
 	if resp.Request != nil {
 		result.FinalURL = resp.Request.URL.String()
@@ -363,6 +456,90 @@ func HTTPRecon(args []string) bool {
 	}
 
 	return false
+}
+
+func makeURLInfo(target *url.URL) URLInfo {
+	port := target.Port()
+	if port == "" {
+		if target.Scheme == "https" {
+			port = "443"
+		} else if target.Scheme == "http" {
+			port = "80"
+		}
+	}
+
+	return URLInfo{
+		Scheme:   target.Scheme,
+		Host:     target.Host,
+		Hostname: target.Hostname(),
+		Port:     port,
+		Path:     target.EscapedPath(),
+		Query:    target.RawQuery,
+	}
+}
+
+func resolveDNS(host string) DNSInfo {
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return DNSInfo{}
+	}
+
+	seen := make(map[string]bool)
+	addresses := make([]string, 0, len(ips))
+
+	for _, ip := range ips {
+		value := ip.String()
+		if !seen[value] {
+			seen[value] = true
+			addresses = append(addresses, value)
+		}
+	}
+
+	return DNSInfo{Addresses: addresses}
+}
+
+func headerValue(headers map[string][]string, name string) string {
+	for key, values := range headers {
+		if strings.EqualFold(key, name) && len(values) > 0 {
+			return strings.Join(values, ", ")
+		}
+	}
+	return ""
+}
+
+func analyzeMethods(headers map[string][]string) MethodInfo {
+	if allow := headerValue(headers, "Allow"); allow != "" {
+		return MethodInfo{
+			Advertised: splitMethods(allow),
+			Source:     "Allow",
+		}
+	}
+
+	if allow := headerValue(headers, "Access-Control-Allow-Methods"); allow != "" {
+		return MethodInfo{
+			Advertised: splitMethods(allow),
+			Source:     "Access-Control-Allow-Methods",
+		}
+	}
+
+	return MethodInfo{}
+}
+
+func splitMethods(value string) []string {
+	parts := strings.Split(value, ",")
+	methods := make([]string, 0, len(parts))
+	seen := make(map[string]bool)
+
+	for _, part := range parts {
+		method := strings.ToUpper(strings.TrimSpace(part))
+		if method == "" || seen[method] {
+			continue
+		}
+		seen[method] = true
+		methods = append(methods, method)
+	}
+
+	return methods
 }
 
 // ============================================================
@@ -541,10 +718,16 @@ func buildRequest(
 	target *url.URL,
 ) (*http.Request, error) {
 
+	var body io.Reader
+
+	if config.Body != "" {
+		body = strings.NewReader(config.Body)
+	}
+
 	req, err := http.NewRequest(
 		config.Method,
 		target.String(),
-		nil,
+		body,
 	)
 
 	if err != nil {
@@ -552,19 +735,15 @@ func buildRequest(
 	}
 
 	if config.UserAgent != "" {
-
-		req.Header.Set(
-			"User-Agent",
-			config.UserAgent,
-		)
+		req.Header.Set("User-Agent", config.UserAgent)
 	}
 
 	for key, value := range config.Headers {
+		req.Header.Set(key, value)
+	}
 
-		req.Header.Set(
-			key,
-			value,
-		)
+	if config.ContentType != "" && config.Body != "" {
+		req.Header.Set("Content-Type", config.ContentType)
 	}
 
 	return req, nil
@@ -577,19 +756,60 @@ func buildRequest(
 func executeRequest(
 	client *http.Client,
 	req *http.Request,
-) (*http.Response, time.Duration, error) {
+) (*http.Response, time.Duration, TimingInfo, error) {
 
-	start := time.Now()
+	var timing TimingInfo
+	var dnsStart, connectStart, tlsStart, requestStart time.Time
+	var firstByte bool
 
-	resp, err := client.Do(req)
-
-	elapsed := time.Since(start)
-
-	if err != nil {
-		return nil, elapsed, err
+	trace := &httptrace.ClientTrace{
+		DNSStart: func(httptrace.DNSStartInfo) {
+			dnsStart = time.Now()
+		},
+		DNSDone: func(httptrace.DNSDoneInfo) {
+			if !dnsStart.IsZero() {
+				timing.DNSLookup = time.Since(dnsStart)
+			}
+		},
+		ConnectStart: func(_, _ string) {
+			connectStart = time.Now()
+		},
+		ConnectDone: func(_, _ string, _ error) {
+			if !connectStart.IsZero() && timing.TCPConnect == 0 {
+				timing.TCPConnect = time.Since(connectStart)
+			}
+		},
+		TLSHandshakeStart: func() {
+			tlsStart = time.Now()
+		},
+		TLSHandshakeDone: func(tls.ConnectionState, error) {
+			if !tlsStart.IsZero() {
+				timing.TLSHandshake = time.Since(tlsStart)
+			}
+		},
+		GotFirstResponseByte: func() {
+			if !firstByte {
+				firstByte = true
+				timing.TTFB = time.Since(requestStart)
+			}
+		},
 	}
 
-	return resp, elapsed, nil
+	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
+
+	requestStart = time.Now()
+	resp, err := client.Do(req)
+	timing.Total = time.Since(requestStart)
+
+	if err != nil {
+		return nil, timing.Total, timing, err
+	}
+
+	if timing.TTFB == 0 {
+		timing.TTFB = timing.Total
+	}
+
+	return resp, timing.Total, timing, nil
 }
 
 // ============================================================
@@ -1032,11 +1252,47 @@ func detectTechnologies(
 		add("WordPress")
 	}
 
-	if strings.Contains(
-		bodyLower,
-		"react",
-	) {
+	if strings.Contains(bodyLower, "react-dom") ||
+		strings.Contains(bodyLower, "reactroot") ||
+		strings.Contains(bodyLower, "data-reactroot") {
 		add("React")
+	}
+
+	if strings.Contains(bodyLower, "vue") ||
+		strings.Contains(bodyLower, "__vue__") ||
+		strings.Contains(bodyLower, "data-v-") {
+		add("Vue.js")
+	}
+
+	if strings.Contains(bodyLower, "ng-version") ||
+		strings.Contains(bodyLower, "angular") {
+		add("Angular")
+	}
+
+	if strings.Contains(bodyLower, "bootstrap") ||
+		strings.Contains(bodyLower, "bootstrap.min.css") {
+		add("Bootstrap")
+	}
+
+	if strings.Contains(bodyLower, "jquery") ||
+		strings.Contains(bodyLower, "jquery.min.js") {
+		add("jQuery")
+	}
+
+	if strings.Contains(server, "iis") {
+		add("Microsoft IIS")
+	}
+
+	if strings.Contains(powered, "asp.net") {
+		add("ASP.NET")
+	}
+
+	if strings.Contains(powered, "node") {
+		add("Node.js")
+	}
+
+	if strings.Contains(powered, "django") {
+		add("Django")
 	}
 
 	return technologies
@@ -1064,6 +1320,60 @@ func printResult(
 	fmt.Println("Response Time:  ", result.ResponseTime)
 	fmt.Println("Content-Type:   ", result.ContentType)
 	fmt.Println("Content-Length: ", result.ContentLength)
+
+	fmt.Println()
+	fmt.Println("--------------- URL --------------------")
+	fmt.Println("Scheme:          ", result.URL.Scheme)
+	fmt.Println("Host:            ", result.URL.Host)
+	fmt.Println("Hostname:        ", result.URL.Hostname)
+	fmt.Println("Port:            ", result.URL.Port)
+	fmt.Println("Path:            ", result.URL.Path)
+	if result.URL.Query != "" {
+		fmt.Println("Query:           ", result.URL.Query)
+	} else {
+		fmt.Println("Query:            None")
+	}
+
+	fmt.Println()
+	fmt.Println("--------------- DNS --------------------")
+	if len(result.DNS.Addresses) == 0 {
+		fmt.Println("No DNS addresses detected")
+	} else {
+		for _, address := range result.DNS.Addresses {
+			fmt.Println(address)
+		}
+	}
+
+	fmt.Println()
+	fmt.Println("--------------- TIMING -----------------")
+	fmt.Println("DNS Lookup:      ", result.Timing.DNSLookup)
+	fmt.Println("TCP Connect:     ", result.Timing.TCPConnect)
+	fmt.Println("TLS Handshake:   ", result.Timing.TLSHandshake)
+	fmt.Println("TTFB:            ", result.Timing.TTFB)
+	fmt.Println("Total:           ", result.Timing.Total)
+
+	fmt.Println()
+	fmt.Println("--------------- SERVER -----------------")
+	if result.Server != "" {
+		fmt.Println("Server:          ", result.Server)
+	} else {
+		fmt.Println("Server:           Not disclosed")
+	}
+	if result.PoweredBy != "" {
+		fmt.Println("X-Powered-By:     ", result.PoweredBy)
+	} else {
+		fmt.Println("X-Powered-By:      Not disclosed")
+	}
+
+	fmt.Println()
+	fmt.Println("----------- HTTP METHODS ----------------")
+	if len(result.Methods.Advertised) == 0 {
+		fmt.Println("Advertised:       Not disclosed")
+		fmt.Println("Source:           No Allow or Access-Control-Allow-Methods header")
+	} else {
+		fmt.Println("Advertised:      ", strings.Join(result.Methods.Advertised, ", "))
+		fmt.Println("Source:           ", result.Methods.Source)
+	}
 
 	fmt.Println()
 	fmt.Println("--------------- HEADERS ----------------")
@@ -1534,6 +1844,60 @@ func formatTextResult(
 	)
 
 	builder.WriteString("\n")
+	builder.WriteString("--------------- URL --------------------\n")
+	fmt.Fprintf(&builder, "Scheme: %s\n", result.URL.Scheme)
+	fmt.Fprintf(&builder, "Host: %s\n", result.URL.Host)
+	fmt.Fprintf(&builder, "Hostname: %s\n", result.URL.Hostname)
+	fmt.Fprintf(&builder, "Port: %s\n", result.URL.Port)
+	fmt.Fprintf(&builder, "Path: %s\n", result.URL.Path)
+	if result.URL.Query != "" {
+		fmt.Fprintf(&builder, "Query: %s\n", result.URL.Query)
+	} else {
+		builder.WriteString("Query: None\n")
+	}
+
+	builder.WriteString("\n")
+	builder.WriteString("--------------- DNS --------------------\n")
+	if len(result.DNS.Addresses) == 0 {
+		builder.WriteString("No DNS addresses detected\n")
+	} else {
+		for _, address := range result.DNS.Addresses {
+			fmt.Fprintf(&builder, "%s\n", address)
+		}
+	}
+
+	builder.WriteString("\n")
+	builder.WriteString("--------------- TIMING -----------------\n")
+	fmt.Fprintf(&builder, "DNS Lookup: %s\n", result.Timing.DNSLookup)
+	fmt.Fprintf(&builder, "TCP Connect: %s\n", result.Timing.TCPConnect)
+	fmt.Fprintf(&builder, "TLS Handshake: %s\n", result.Timing.TLSHandshake)
+	fmt.Fprintf(&builder, "TTFB: %s\n", result.Timing.TTFB)
+	fmt.Fprintf(&builder, "Total: %s\n", result.Timing.Total)
+
+	builder.WriteString("\n")
+	builder.WriteString("--------------- SERVER -----------------\n")
+	if result.Server != "" {
+		fmt.Fprintf(&builder, "Server: %s\n", result.Server)
+	} else {
+		builder.WriteString("Server: Not disclosed\n")
+	}
+	if result.PoweredBy != "" {
+		fmt.Fprintf(&builder, "X-Powered-By: %s\n", result.PoweredBy)
+	} else {
+		builder.WriteString("X-Powered-By: Not disclosed\n")
+	}
+
+	builder.WriteString("\n")
+	builder.WriteString("----------- HTTP METHODS ----------------\n")
+	if len(result.Methods.Advertised) == 0 {
+		builder.WriteString("Advertised: Not disclosed\n")
+		builder.WriteString("Source: No Allow or Access-Control-Allow-Methods header\n")
+	} else {
+		fmt.Fprintf(&builder, "Advertised: %s\n", strings.Join(result.Methods.Advertised, ", "))
+		fmt.Fprintf(&builder, "Source: %s\n", result.Methods.Source)
+	}
+
+	builder.WriteString("\n")
 	builder.WriteString("--------------- HEADERS ----------------\n")
 
 	for key, values := range result.Headers {
@@ -1648,6 +2012,18 @@ func formatTextResult(
 		&builder,
 		"Permissions-Policy",
 		result.SecurityHeaders.PermissionsPolicy,
+	)
+
+	writeTextSecurityHeader(
+		&builder,
+		"Cross-Origin-Opener-Policy",
+		result.SecurityHeaders.CrossOriginOpenerPolicy,
+	)
+
+	writeTextSecurityHeader(
+		&builder,
+		"Cross-Origin-Resource-Policy",
+		result.SecurityHeaders.CrossOriginResourcePolicy,
 	)
 
 	builder.WriteString("\n")

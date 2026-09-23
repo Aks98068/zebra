@@ -411,12 +411,24 @@ func Init() {
 			return dnss.DNSLookup(args)
 		},
 	})
-
 	Register(Command{
 		Name:        "http",
 		Aliases:     []string{"httprecon", "http-recon"},
 		Description: "perform HTTP/HTTPS reconnaissance",
-		Usage:       "http <url> [-method GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT] [-timeout <duration>] [-header <key:value>] [-proxy <url>] [-insecure] [-no-follow] [-max-redirects <n>] [-body-limit <size>] [-o <file>]",
+		Usage: "http <url> " +
+			"[-method GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT] " +
+			"[-timeout <duration>] " +
+			"[-header <key:value>] " +
+			"[-user-agent <value>] " +
+			"[-proxy <url>] " +
+			"[-insecure] " +
+			"[-follow|-no-follow] " +
+			"[-max-redirects <n>] " +
+			"[-body <data>] " +
+			"[-body-file <file>] " +
+			"[-content-type <type>] " +
+			"[-body-limit <size>] " +
+			"[-o <file>]",
 		Run: func(args []string, ctx *Context) bool {
 			return https.HTTPRecon(args)
 		},
