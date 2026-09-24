@@ -356,6 +356,12 @@ func Init() {
 		Usage:       "help",
 		Run:         handleHelp,
 	})
+	Register(Command{
+		Name:        "info",
+		Description: "show tool information",
+		Usage:       "information",
+		Run:         Info,
+	})
 
 	Register(Command{
 		Name:        "exit",
