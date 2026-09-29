@@ -3,8 +3,11 @@ package commands
 import (
 	"fmt"
 	"sort"
+	databaserecon "zebra/internal/commands/recon/database_recon"
 	"zebra/internal/commands/recon/dnss"
 	"zebra/internal/commands/recon/https"
+	"zebra/internal/commands/recon/osint-email"
+	"zebra/internal/commands/recon/tls"
 	"zebra/internal/commands/recon/whois"
 )
 
@@ -447,6 +450,41 @@ func Init() {
 		Usage:       "whois <domain> [-server <server>] [-timeout <duration>] [-o <file>]",
 		Run: func(args []string, ctx *Context) bool {
 			return whois.WHOISLookup(args)
+		},
+	})
+
+	Register(Command{
+		Name:        "database",
+		Aliases:     []string{"databaserecon", "dbrecon"},
+		Description: "perform database service reconnaissance",
+		Usage:       "database <target> [--verify]",
+		Run: func(args []string, ctx *Context) bool {
+			return databaserecon.DatabaseRecon(args)
+		},
+	})
+	Register(Command{
+		Name:        "osint",
+		Aliases:     []string{"recon"},
+		Description: "personal footprint recon: gravatar, hibp, username, dork lookups",
+		Usage:       "osint <gravatar|hibp|username|dork> <target> [flags]",
+		Run: func(args []string, ctx *Context) bool {
+			if len(args) == 0 {
+				osint.PrintHelp()
+				return false
+			}
+			// args[0] is the sub-command name (e.g. "gravatar"); args[1:] are its args.
+			// No parent timeout exists on the command Context, so use the OSINT package's default.
+			subCtx := &osint.Context{}
+			return osint.Dispatch(args[0], args[1:], subCtx)
+		},
+	})
+	Register(Command{
+		Name:        "tls",
+		Aliases:     []string{"ssl"},
+		Description: "TLS/SSL security and certificate reconnaissance",
+		Usage:       "tls <host> [port]",
+		Run: func(args []string, ctx *Context) bool {
+			return tls.TLSRecon(args)
 		},
 	})
 

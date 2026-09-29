@@ -1,0 +1,17 @@
+DATABASE RECON
+========================================
+
+Target: ismt.edu.np
+Mode: passive
+
+Resolved IP addresses:
+  2606:4700:3037::6815:1f16
+  2606:4700:3034::ac43:aea9
+  172.67.174.169
+  104.21.31.22
+
+Detected services:
+
+  None
+
+No authentication attempted.
