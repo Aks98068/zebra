@@ -1,0 +1,98 @@
+{
+    "target": "ismt.edu.np",
+    "scanned_at": "2026-09-29T06:43:09.4744066Z",
+    "duration": 1556129700,
+    "sources": [
+        "Certificate Transparency"
+    ],
+    "subdomains": [
+        {
+            "hostname": "cpanel.ismt.edu.np",
+            "ips": [
+                "104.21.31.22",
+                "172.67.174.169"
+            ]
+        },
+        {
+            "hostname": "cpcalendars.ismt.edu.np",
+            "ips": [
+                "104.21.31.22",
+                "172.67.174.169"
+            ]
+        },
+        {
+            "hostname": "cpcontacts.ismt.edu.np",
+            "ips": [
+                "104.21.31.22",
+                "172.67.174.169"
+            ]
+        },
+        {
+            "hostname": "ipl.ismt.edu.np",
+            "ips": [
+                "104.21.31.22",
+                "172.67.174.169"
+            ]
+        },
+        {
+            "hostname": "ismt.edu.np",
+            "ips": [
+                "104.21.31.22",
+                "172.67.174.169"
+            ]
+        },
+        {
+            "hostname": "mail.ismt.edu.np",
+            "ips": [
+                "104.21.31.22",
+                "172.67.174.169"
+            ]
+        },
+        {
+            "hostname": "webdisk.ismt.edu.np",
+            "ips": [
+                "104.21.31.22",
+                "172.67.174.169"
+            ]
+        },
+        {
+            "hostname": "webmail.ismt.edu.np",
+            "ips": [
+                "104.21.31.22",
+                "172.67.174.169"
+            ]
+        },
+        {
+            "hostname": "www.ismt.edu.np",
+            "ips": [
+                "104.21.31.22",
+                "172.67.174.169"
+            ]
+        }
+    ],
+    "total_found": 9,
+    "errors": [
+        "admission.ismt.edu.np: DNS resolution failed: lookup admission.ismt.edu.np: no such host",
+        "aec-nepal.ismt.edu.np: DNS resolution failed: lookup aec-nepal.ismt.edu.np: no such host",
+        "aecnepal.ismt.edu.np: DNS resolution failed: lookup aecnepal.ismt.edu.np: no such host",
+        "asiacup.ismt.edu.np: DNS resolution failed: lookup asiacup.ismt.edu.np: no such host",
+        "autodiscover.ismt.edu.np: DNS resolution failed: lookup autodiscover.ismt.edu.np: no such host",
+        "class.ismt.edu.np: DNS resolution failed: lookup class.ismt.edu.np: no such host",
+        "cricket.ismt.edu.np: DNS resolution failed: lookup cricket.ismt.edu.np: no such host",
+        "indrenicollege.ismt.edu.np: DNS resolution failed: lookup indrenicollege.ismt.edu.np: no such host",
+        "ismtgroup.ismt.edu.np: DNS resolution failed: lookup ismtgroup.ismt.edu.np: no such host",
+        "moodle.ismt.edu.np: DNS resolution failed: lookup moodle.ismt.edu.np: no such host",
+        "sis.ismt.edu.np: DNS resolution failed: lookup sis.ismt.edu.np: no such host",
+        "www.admission.ismt.edu.np: DNS resolution failed: lookup www.admission.ismt.edu.np: no such host",
+        "www.aec-nepal.ismt.edu.np: DNS resolution failed: lookup www.aec-nepal.ismt.edu.np: no such host",
+        "www.aecnepal.ismt.edu.np: DNS resolution failed: lookup www.aecnepal.ismt.edu.np: no such host",
+        "www.asiacup.ismt.edu.np: DNS resolution failed: lookup www.asiacup.ismt.edu.np: no such host",
+        "www.class.ismt.edu.np: DNS resolution failed: lookup www.class.ismt.edu.np: no such host",
+        "www.cricket.ismt.edu.np: DNS resolution failed: lookup www.cricket.ismt.edu.np: no such host",
+        "www.indrenicollege.ismt.edu.np: DNS resolution failed: lookup www.indrenicollege.ismt.edu.np: no such host",
+        "www.ismtcollege.ismt.edu.np: DNS resolution failed: lookup www.ismtcollege.ismt.edu.np: no such host",
+        "www.ismtgroup.ismt.edu.np: DNS resolution failed: lookup www.ismtgroup.ismt.edu.np: no such host",
+        "www.moodle.ismt.edu.np: DNS resolution failed: lookup www.moodle.ismt.edu.np: no such host",
+        "www.sis.ismt.edu.np: DNS resolution failed: lookup www.sis.ismt.edu.np: no such host"
+    ]
+}

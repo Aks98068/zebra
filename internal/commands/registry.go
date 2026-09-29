@@ -7,6 +7,7 @@ import (
 	"zebra/internal/commands/recon/dnss"
 	"zebra/internal/commands/recon/https"
 	"zebra/internal/commands/recon/osint-email"
+	"zebra/internal/commands/recon/subfinder"
 	"zebra/internal/commands/recon/tls"
 	"zebra/internal/commands/recon/whois"
 )
@@ -485,6 +486,16 @@ func Init() {
 		Usage:       "tls <host> [port]",
 		Run: func(args []string, ctx *Context) bool {
 			return tls.TLSRecon(args)
+		},
+	})
+
+	Register(Command{
+		Name:        "subfinder",
+		Aliases:     []string{"subdomain", "subs"},
+		Description: "discover subdomains for a domain",
+		Usage:       "subfinder <domain> [options]",
+		Run: func(args []string, ctx *Context) bool {
+			return subfinder.SubfinderRecon(args)
 		},
 	})
 
