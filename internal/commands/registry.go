@@ -8,6 +8,7 @@ import (
 	"zebra/internal/commands/recon/https"
 	networkscan "zebra/internal/commands/recon/network-scan"
 	"zebra/internal/commands/recon/osint-email"
+	"zebra/internal/commands/recon/ping"
 	"zebra/internal/commands/recon/subfinder"
 	"zebra/internal/commands/recon/tls"
 	"zebra/internal/commands/recon/whois"
@@ -549,6 +550,16 @@ func Init() {
 
 		Run: func(args []string, ctx *Context) bool {
 			return networkscan.NetworkScan(args)
+		},
+	})
+
+	Register(Command{
+		Name:        "ping",
+		Aliases:     []string{"icmp", "ping4", "ping6"},
+		Description: "test host reachability and measure ICMP round-trip time",
+		Usage:       "ping <target> [-c <count>] [-W <timeout>]",
+		Run: func(args []string, ctx *Context) bool {
+			return ping.PingRecon(args)
 		},
 	})
 }

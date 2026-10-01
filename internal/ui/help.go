@@ -702,4 +702,64 @@ func PrintHelp() {
 	)
 
 	fmt.Println()
+
+	fmt.Println(
+		BrightGreen + Bold +
+			"Network Diagnostics:" +
+			Reset,
+	)
+
+	fmt.Println(
+		"  ping <target> [-c <count>] [-W <timeout>]",
+	)
+
+	fmt.Println()
+
+	fmt.Println(
+		"  ping Options:",
+	)
+
+	fmt.Println(
+		"    -c <count>          Number of ICMP echo requests",
+	)
+
+	fmt.Println(
+		"    -W <duration>       Timeout for each request",
+	)
+
+	fmt.Println(
+		"    --timeout <duration>",
+	)
+
+	fmt.Println(
+		"                        Timeout for each request",
+	)
+
+	fmt.Println()
+
+	fmt.Println(
+		"  ping Examples:",
+	)
+
+	fmt.Println(
+		"    ping 192.168.1.1",
+	)
+
+	fmt.Println(
+		"    ping google.com",
+	)
+
+	fmt.Println(
+		"    ping 192.168.1.1 -c 5",
+	)
+
+	fmt.Println(
+		"    ping 192.168.1.1 -W 1s",
+	)
+
+	fmt.Println(
+		"    ping 192.168.1.1 -c 10 -W 2s",
+	)
+
+	fmt.Println()
 }
