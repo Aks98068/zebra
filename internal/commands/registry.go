@@ -398,33 +398,34 @@ func Init() {
 		Usage:       "systeminfo",
 		Run:         SystemInfo,
 	})
-	// ================================
+	// =========================================================
 	// RECON COMMANDS
-	// ================================
+	// =========================================================
+
+	// ---------------------------------------------------------
+	// DNS
+	// ---------------------------------------------------------
 
 	Register(Command{
 		Name:        "dns",
 		Aliases:     []string{"dnslookup"},
-		Description: "perform DNS lookup and reverse DNS lookup",
-		Usage:       "dns <domain> | dns reverse <ip>",
+		Description: "perform DNS and reverse DNS reconnaissance",
+		Usage:       "dns <domain> [-type A|AAAA|MX|NS|TXT|CNAME|ALL] [-o <file>] | dns reverse <ip>",
 		Run: func(args []string, ctx *Context) bool {
 			return dnss.DNSLookup(args)
 		},
 	})
 
+	// ---------------------------------------------------------
+	// HTTP / HTTPS
+	// ---------------------------------------------------------
+
 	Register(Command{
-		Name:        "dns",
-		Aliases:     []string{"dnslookup"},
-		Description: "perform DNS lookups",
-		Usage:       "dns <domain> [-type A|AAAA|MX|NS|TXT|CNAME|ALL] [-o <file>]",
-		Run: func(args []string, ctx *Context) bool {
-			return dnss.DNSLookup(args)
-		},
-	})
-	Register(Command{
-		Name:        "http",
-		Aliases:     []string{"httprecon", "http-recon"},
+		Name:    "http",
+		Aliases: []string{"httprecon", "http-recon"},
+
 		Description: "perform HTTP/HTTPS reconnaissance",
+
 		Usage: "http <url> " +
 			"[-method GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT] " +
 			"[-timeout <duration>] " +
@@ -439,55 +440,83 @@ func Init() {
 			"[-content-type <type>] " +
 			"[-body-limit <size>] " +
 			"[-o <file>]",
+
 		Run: func(args []string, ctx *Context) bool {
 			return https.HTTPRecon(args)
 		},
 	})
 
+	// ---------------------------------------------------------
+	// WHOIS
+	// ---------------------------------------------------------
+
 	Register(Command{
 		Name:        "whois",
 		Aliases:     []string{"whoislookup"},
 		Description: "perform WHOIS lookup",
-		Usage:       "whois <domain> [-server <server>] [-timeout <duration>] [-o <file>]",
+		Usage:       "whois <domain|ip> [-server <server>] [-timeout <duration>] [-o <file>]",
 		Run: func(args []string, ctx *Context) bool {
 			return whois.WHOISLookup(args)
 		},
 	})
 
+	// ---------------------------------------------------------
+	// DATABASE RECON
+	// ---------------------------------------------------------
+
 	Register(Command{
 		Name:        "database",
 		Aliases:     []string{"databaserecon", "dbrecon"},
 		Description: "perform database service reconnaissance",
-		Usage:       "database <target> [--verify]",
+		Usage:       "database <domain|host> [--verify]",
 		Run: func(args []string, ctx *Context) bool {
 			return databaserecon.DatabaseRecon(args)
 		},
 	})
+
+	// ---------------------------------------------------------
+	// OSINT
+	// ---------------------------------------------------------
+
 	Register(Command{
 		Name:        "osint",
 		Aliases:     []string{"recon"},
-		Description: "personal footprint recon: gravatar, hibp, username, dork lookups",
+		Description: "perform OSINT reconnaissance",
 		Usage:       "osint <gravatar|hibp|username|dork> <target> [flags]",
 		Run: func(args []string, ctx *Context) bool {
+
 			if len(args) == 0 {
 				osint.PrintHelp()
 				return false
 			}
-			// args[0] is the sub-command name (e.g. "gravatar"); args[1:] are its args.
-			// No parent timeout exists on the command Context, so use the OSINT package's default.
+
 			subCtx := &osint.Context{}
-			return osint.Dispatch(args[0], args[1:], subCtx)
+
+			return osint.Dispatch(
+				args[0],
+				args[1:],
+				subCtx,
+			)
 		},
 	})
+
+	// ---------------------------------------------------------
+	// TLS / SSL
+	// ---------------------------------------------------------
+
 	Register(Command{
 		Name:        "tls",
 		Aliases:     []string{"ssl"},
-		Description: "TLS/SSL security and certificate reconnaissance",
+		Description: "perform TLS/SSL security and certificate reconnaissance",
 		Usage:       "tls <host> [port]",
 		Run: func(args []string, ctx *Context) bool {
 			return tls.TLSRecon(args)
 		},
 	})
+
+	// ---------------------------------------------------------
+	// SUBDOMAIN RECON
+	// ---------------------------------------------------------
 
 	Register(Command{
 		Name:        "subfinder",
@@ -498,7 +527,6 @@ func Init() {
 			return subfinder.SubfinderRecon(args)
 		},
 	})
-
 }
 
 // ============================================================

@@ -1,0 +1,13 @@
+{
+    "target": "ismt.edu.np",
+    "scanned_at": "2026-10-01T10:11:20.4821567Z",
+    "duration": 2593438300,
+    "sources": [
+        "Certificate Transparency"
+    ],
+    "subdomains": [],
+    "total_found": 0,
+    "errors": [
+        "certificate transparency unavailable after 3 attempts: certificate transparency returned HTTP status 502"
+    ]
+}

@@ -1,0 +1,13 @@
+{
+    "target": "google.com",
+    "scanned_at": "2026-10-01T10:11:52.0490252Z",
+    "duration": 2027918400,
+    "sources": [
+        "Certificate Transparency"
+    ],
+    "subdomains": [],
+    "total_found": 0,
+    "errors": [
+        "certificate transparency unavailable after 3 attempts: certificate transparency returned HTTP status 502"
+    ]
+}

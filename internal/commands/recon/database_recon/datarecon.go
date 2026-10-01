@@ -1,4 +1,4 @@
-package database_recon
+package commands
 
 import (
 	"bufio"
@@ -10,7 +10,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -18,225 +17,254 @@ import (
 // DATABASE RECON
 // ============================================================
 //
-// Passive:
+// Modes:
+//
 //   database <target>
+//       Passive DNS/SRV reconnaissance.
 //
-// Full authorized scan:
-//   database <target> --full
+//   database <target> --verify
+//       Passive reconnaissance + bounded TCP verification +
+//       safe protocol identification.
 //
-// Full mode:
-//   - Resolves A / AAAA records
-//   - Scans TCP ports 1-65535
-//   - Identifies OPEN ports
-//   - Fingerprints database protocols
-//   - Extracts publicly exposed protocol information
+// IMPORTANT:
 //
-// It does NOT:
+// This command does NOT:
 //   - authenticate
 //   - brute-force credentials
+//   - enumerate databases
 //   - execute SQL
-//   - enumerate tables
-//   - enumerate records
 //   - exploit services
+//   - attempt credential discovery
+//
+// --verify should only be used against infrastructure you are
+// authorized to test.
 // ============================================================
-
-const (
-	firstTCPPort = 1
-	lastTCPPort  = 65535
-
-	tcpScanWorkers = 100
-	fpWorkers      = 20
-
-	connectTimeout = 700 * time.Millisecond
-	probeTimeout   = 1800 * time.Millisecond
-
-	maxBannerSize = 8192
-)
 
 // ============================================================
 // TYPES
 // ============================================================
 
-// DatabaseReconResult represents one discovered service.
 type DatabaseReconResult struct {
-	IP         string
+	Host       string
 	Port       int
 	Protocol   string
 	Database   string
-	Version    string
 	Status     string
 	Confidence string
 	Evidence   string
-	TLS        string
+	Live       bool
 }
 
-// DatabaseEndpoint is an OPEN TCP endpoint that will be
-// fingerprinted.
-type DatabaseEndpoint struct {
-	IP   string
+type databaseService struct {
+	Name string
 	Port int
-}
-
-// databaseFingerprint contains protocol-level evidence.
-type databaseFingerprint struct {
-	Database   string
-	Version    string
-	Confidence string
-	Evidence   string
-	TLS        string
-}
-
-// databaseScanStats contains complete TCP scan statistics.
-type databaseScanStats struct {
-	Tested   int64
-	Open     int64
-	Closed   int64
-	Filtered int64
-	Errors   int64
+	SRV  string
 }
 
 // ============================================================
-// MAIN
+// DATABASE SERVICE DEFINITIONS
+// ============================================================
+
+var databaseServices = []databaseService{
+	{
+		Name: "MySQL",
+		Port: 3306,
+		SRV:  "_mysql._tcp",
+	},
+	{
+		Name: "PostgreSQL",
+		Port: 5432,
+		SRV:  "_postgresql._tcp",
+	},
+	{
+		Name: "Redis",
+		Port: 6379,
+		SRV:  "_redis._tcp",
+	},
+	{
+		Name: "MongoDB",
+		Port: 27017,
+		SRV:  "_mongodb._tcp",
+	},
+	{
+		Name: "Microsoft SQL Server",
+		Port: 1433,
+		SRV:  "_mssql._tcp",
+	},
+	{
+		Name: "Oracle",
+		Port: 1521,
+		SRV:  "",
+	},
+	{
+		Name: "Cassandra",
+		Port: 9042,
+		SRV:  "",
+	},
+	{
+		Name: "CouchDB",
+		Port: 5984,
+		SRV:  "",
+	},
+	{
+		Name: "ArangoDB",
+		Port: 8529,
+		SRV:  "",
+	},
+}
+
+// ============================================================
+// MAIN COMMAND
 // ============================================================
 
 func DatabaseRecon(args []string) bool {
 
 	if len(args) == 0 {
-		fmt.Println("Usage: database <domain|host|IP> [--full]")
+		fmt.Println("Usage: database <domain|host> [--verify]")
 		return false
 	}
 
-	target := normalizeTarget(args[0])
+	target := strings.TrimSpace(args[0])
 
-	if !validTarget(target) {
-		fmt.Printf("Invalid target: %s\n", target)
+	if target == "" {
+		fmt.Println("Error: target cannot be empty")
 		return false
 	}
 
-	fullScan := false
+	// --------------------------------------------------------
+	// OPTIONS
+	// --------------------------------------------------------
+
+	verify := false
 
 	for _, arg := range args[1:] {
 
-		switch strings.ToLower(
-			strings.TrimSpace(arg),
-		) {
+		switch strings.ToLower(strings.TrimSpace(arg)) {
 
-		case "--full":
-			fullScan = true
+		case "--verify":
+			verify = true
+
+		case "-v":
+			verify = true
 
 		default:
 			fmt.Printf("Unknown option: %s\n", arg)
-			fmt.Println("Usage: database <domain|host|IP> [--full]")
+			fmt.Println("Usage: database <domain|host> [--verify]")
 			return false
 		}
 	}
 
 	// --------------------------------------------------------
-	// DNS
+	// NORMALIZE
 	// --------------------------------------------------------
 
-	ips, err := lookupIPs(target)
+	target = normalizeDatabaseTarget(target)
 
-	if err != nil {
-		fmt.Printf("DNS resolution failed: %v\n", err)
-		return false
-	}
+	if !validDatabaseTarget(target) {
 
-	if len(ips) == 0 {
-		fmt.Println("No IP addresses resolved.")
-		return false
-	}
-
-	// --------------------------------------------------------
-	// Infrastructure
-	// --------------------------------------------------------
-
-	infrastructure := detectInfrastructure(
-		target,
-		ips,
-	)
-
-	// --------------------------------------------------------
-	// SRV records
-	// --------------------------------------------------------
-
-	passive := discoverSRV(target)
-
-	// --------------------------------------------------------
-	// Passive mode
-	// --------------------------------------------------------
-
-	if !fullScan {
-
-		printPassiveReport(
+		fmt.Printf(
+			"Error: invalid target: %s\n",
 			target,
-			ips,
-			infrastructure,
-			passive,
 		)
 
-		return true
+		return false
 	}
 
 	// --------------------------------------------------------
-	// Full scan
+	// RESOLVE
 	// --------------------------------------------------------
 
-	fmt.Println()
-	fmt.Println("Starting full TCP scan...")
-	fmt.Printf("Targets      %d address(es)\n", len(ips))
-	fmt.Println("Ports        1-65535")
-	fmt.Printf("Workers      %d\n", tcpScanWorkers)
-	fmt.Println()
+	ips, err := lookupDatabaseIPs(target)
 
-	openEndpoints, stats := scanAllTCPPorts(
-		ips,
-	)
+	if err != nil {
 
-	// --------------------------------------------------------
-	// Fingerprint
-	// --------------------------------------------------------
-
-	fmt.Println()
-	fmt.Println("Fingerprinting open services...")
-
-	active := fingerprintOpenEndpoints(
-		openEndpoints,
-	)
+		fmt.Printf(
+			"Warning: DNS resolution failed: %v\n",
+			err,
+		)
+	}
 
 	// --------------------------------------------------------
-	// Merge
+	// INFRASTRUCTURE
 	// --------------------------------------------------------
 
-	results := append(
-		passive,
-		active...,
-	)
-
-	results = deduplicateResults(results)
-
-	sortResults(results)
-
-	// --------------------------------------------------------
-	// Report
-	// --------------------------------------------------------
-
-	printFullReport(
+	infrastructure := detectDatabaseInfrastructure(
 		target,
 		ips,
-		infrastructure,
-		results,
-		stats,
 	)
+
+	// --------------------------------------------------------
+	// PASSIVE DISCOVERY
+	// --------------------------------------------------------
+
+	results := discoverPassiveDatabaseServices(
+		target,
+	)
+
+	// --------------------------------------------------------
+	// ACTIVE VERIFICATION
+	// --------------------------------------------------------
+
+	if verify && len(ips) > 0 {
+
+		activeResults := verifyDatabaseServices(
+			ips,
+		)
+
+		results = append(
+			results,
+			activeResults...,
+		)
+	}
+
+	// --------------------------------------------------------
+	// DEDUPLICATE
+	// --------------------------------------------------------
+
+	results = deduplicateDatabaseResults(
+		results,
+	)
+
+	// --------------------------------------------------------
+	// SORT
+	// --------------------------------------------------------
+
+	sortDatabaseResults(
+		results,
+	)
+
+	// --------------------------------------------------------
+	// REPORT
+	// --------------------------------------------------------
+
+	printDatabaseReconReport(
+		target,
+		verify,
+		results,
+		ips,
+		infrastructure,
+	)
+
+	// --------------------------------------------------------
+	// YOUR EXISTING FILE SAVE FUNCTION
+	// --------------------------------------------------------
+	//
+	// Connect your existing save/report function here.
+	//
+	// Example:
+	//
+	// saveDatabaseReconResult(target, results)
+	//
+	// --------------------------------------------------------
 
 	return true
 }
 
 // ============================================================
-// NORMALIZE TARGET
+// TARGET NORMALIZATION
 // ============================================================
 
-func normalizeTarget(target string) string {
+func normalizeDatabaseTarget(target string) string {
 
 	target = strings.TrimSpace(target)
 
@@ -250,34 +278,42 @@ func normalizeTarget(target string) string {
 		"http://",
 	)
 
+	// Remove path.
 	if index := strings.Index(
 		target,
 		"/",
 	); index >= 0 {
+
 		target = target[:index]
 	}
 
-	// Handle host:port.
+	// Remove port if host:port.
 	if host, _, err := net.SplitHostPort(target); err == nil {
+
 		target = host
 	}
 
 	target = strings.TrimSpace(target)
-	target = strings.TrimSuffix(target, ".")
+
+	target = strings.TrimSuffix(
+		target,
+		".",
+	)
 
 	return strings.ToLower(target)
 }
 
 // ============================================================
-// VALIDATE TARGET
+// TARGET VALIDATION
 // ============================================================
 
-func validTarget(target string) bool {
+func validDatabaseTarget(target string) bool {
 
 	if target == "" {
 		return false
 	}
 
+	// IPv4 / IPv6.
 	if net.ParseIP(target) != nil {
 		return true
 	}
@@ -304,7 +340,11 @@ func validTarget(target string) bool {
 
 	for _, label := range labels {
 
-		if label == "" || len(label) > 63 {
+		if label == "" {
+			return false
+		}
+
+		if len(label) > 63 {
 			return false
 		}
 
@@ -329,14 +369,12 @@ func validTarget(target string) bool {
 }
 
 // ============================================================
-// DNS
+// DNS RESOLUTION
 // ============================================================
 
-func lookupIPs(target string) ([]string, error) {
-
-	if ip := net.ParseIP(target); ip != nil {
-		return []string{ip.String()}, nil
-	}
+func lookupDatabaseIPs(
+	target string,
+) ([]string, error) {
 
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
@@ -345,7 +383,7 @@ func lookupIPs(target string) ([]string, error) {
 
 	defer cancel()
 
-	hosts, err := net.DefaultResolver.LookupHost(
+	ips, err := net.DefaultResolver.LookupHost(
 		ctx,
 		target,
 	)
@@ -358,15 +396,15 @@ func lookupIPs(target string) ([]string, error) {
 		map[string]struct{},
 	)
 
-	for _, host := range hosts {
+	for _, ip := range ips {
 
-		ip := net.ParseIP(host)
+		ip = strings.TrimSpace(ip)
 
-		if ip == nil {
+		if net.ParseIP(ip) == nil {
 			continue
 		}
 
-		unique[ip.String()] = struct{}{}
+		unique[ip] = struct{}{}
 	}
 
 	result := make(
@@ -385,47 +423,28 @@ func lookupIPs(target string) ([]string, error) {
 }
 
 // ============================================================
-// SRV DISCOVERY
+// PASSIVE SRV DISCOVERY
 // ============================================================
 
-func discoverSRV(
+func discoverPassiveDatabaseServices(
 	target string,
 ) []DatabaseReconResult {
 
-	type srvService struct {
-		name    string
-		service string
-	}
-
-	services := []srvService{
-		{
-			name:    "MySQL",
-			service: "mysql",
-		},
-		{
-			name:    "PostgreSQL",
-			service: "postgresql",
-		},
-		{
-			name:    "Redis",
-			service: "redis",
-		},
-		{
-			name:    "MongoDB",
-			service: "mongodb",
-		},
-		{
-			name:    "Microsoft SQL Server",
-			service: "mssql",
-		},
-	}
-
 	var results []DatabaseReconResult
 
-	for _, service := range services {
+	for _, service := range databaseServices {
+
+		if service.SRV == "" {
+			continue
+		}
+
+		serviceName := strings.TrimPrefix(
+			service.SRV,
+			"_",
+		)
 
 		_, records, err := net.LookupSRV(
-			service.service,
+			serviceName,
 			"tcp",
 			target,
 		)
@@ -436,15 +455,6 @@ func discoverSRV(
 
 		for _, record := range records {
 
-			// IMPORTANT:
-			// net.LookupSRV returns []*net.SRV.
-			//
-			// Therefore:
-			//     record.Target
-			//
-			// not:
-			//     srv.Target
-
 			host := strings.TrimSuffix(
 				record.Target,
 				".",
@@ -453,14 +463,14 @@ func discoverSRV(
 			results = append(
 				results,
 				DatabaseReconResult{
-					IP:         host,
+					Host:       host,
 					Port:       int(record.Port),
-					Protocol:   "TCP",
-					Database:   service.name,
-					Status:     "ADVERTISED",
-					Confidence: "HIGH",
-					Evidence:   "Public DNS SRV record",
-					TLS:        "unknown",
+					Protocol:   "tcp",
+					Database:   service.Name,
+					Status:     "advertised",
+					Confidence: "high",
+					Evidence:   "public DNS SRV record",
+					Live:       false,
 				},
 			)
 		}
@@ -470,214 +480,88 @@ func discoverSRV(
 }
 
 // ============================================================
-// FULL TCP SCAN
+// ACTIVE SERVICE VERIFICATION
 // ============================================================
 
-func scanAllTCPPorts(
+func verifyDatabaseServices(
 	ips []string,
-) ([]DatabaseEndpoint, databaseScanStats) {
+) []DatabaseReconResult {
 
-	var stats databaseScanStats
+	var results []DatabaseReconResult
 
-	var endpoints []DatabaseEndpoint
+	// --------------------------------------------------------
+	// Limit concurrent connections.
+	// --------------------------------------------------------
 
-	var mutex sync.Mutex
+	const maxWorkers = 4
 
-	jobs := make(
-		chan DatabaseEndpoint,
-		tcpScanWorkers*2,
-	)
-
-	var wg sync.WaitGroup
-
-	worker := func() {
-
-		defer wg.Done()
-
-		for endpoint := range jobs {
-
-			atomic.AddInt64(
-				&stats.Tested,
-				1,
-			)
-
-			state := scanTCPPort(
-				endpoint.IP,
-				endpoint.Port,
-			)
-
-			switch state {
-
-			case "OPEN":
-
-				atomic.AddInt64(
-					&stats.Open,
-					1,
-				)
-
-				mutex.Lock()
-
-				endpoints = append(
-					endpoints,
-					endpoint,
-				)
-
-				mutex.Unlock()
-
-			case "CLOSED":
-
-				atomic.AddInt64(
-					&stats.Closed,
-					1,
-				)
-
-			case "FILTERED":
-
-				atomic.AddInt64(
-					&stats.Filtered,
-					1,
-				)
-
-			default:
-
-				atomic.AddInt64(
-					&stats.Errors,
-					1,
-				)
-			}
-		}
+	type targetPort struct {
+		ip   string
+		port int
+		name string
 	}
 
-	wg.Add(tcpScanWorkers)
-
-	for i := 0; i < tcpScanWorkers; i++ {
-		go worker()
-	}
+	var jobs []targetPort
 
 	for _, ip := range ips {
 
-		for port := firstTCPPort; port <= lastTCPPort; port++ {
+		for _, service := range databaseServices {
 
-			jobs <- DatabaseEndpoint{
-				IP:   ip,
-				Port: port,
-			}
+			jobs = append(
+				jobs,
+				targetPort{
+					ip:   ip,
+					port: service.Port,
+					name: service.Name,
+				},
+			)
 		}
 	}
 
-	close(jobs)
-
-	wg.Wait()
-
-	sort.Slice(
-		endpoints,
-		func(i, j int) bool {
-
-			if endpoints[i].IP != endpoints[j].IP {
-				return endpoints[i].IP <
-					endpoints[j].IP
-			}
-
-			return endpoints[i].Port <
-				endpoints[j].Port
-		},
+	jobChannel := make(
+		chan targetPort,
+		len(jobs),
 	)
 
-	return endpoints, stats
-}
-
-// ============================================================
-// TCP PORT CHECK
-// ============================================================
-
-func scanTCPPort(
-	ip string,
-	port int,
-) string {
-
-	address := net.JoinHostPort(
-		ip,
-		fmt.Sprintf("%d", port),
+	resultChannel := make(
+		chan DatabaseReconResult,
+		len(jobs),
 	)
 
-	dialer := net.Dialer{
-		Timeout: connectTimeout,
+	for _, job := range jobs {
+		jobChannel <- job
 	}
 
-	conn, err := dialer.Dial(
-		"tcp",
-		address,
-	)
-
-	if err == nil {
-
-		_ = conn.Close()
-
-		return "OPEN"
-	}
-
-	if isTimeout(err) {
-		return "FILTERED"
-	}
-
-	if isRefused(err) {
-		return "CLOSED"
-	}
-
-	return "ERROR"
-}
-
-// ============================================================
-// FINGERPRINT OPEN PORTS
-// ============================================================
-
-func fingerprintOpenEndpoints(
-	endpoints []DatabaseEndpoint,
-) []DatabaseReconResult {
-
-	if len(endpoints) == 0 {
-		return nil
-	}
-
-	workers := fpWorkers
-
-	if len(endpoints) < workers {
-		workers = len(endpoints)
-	}
-
-	jobs := make(
-		chan DatabaseEndpoint,
-		workers*2,
-	)
+	close(jobChannel)
 
 	var wg sync.WaitGroup
-	var mutex sync.Mutex
-
-	results := make(
-		[]DatabaseReconResult,
-		0,
-		len(endpoints),
-	)
 
 	worker := func() {
 
 		defer wg.Done()
 
-		for endpoint := range jobs {
+		for job := range jobChannel {
 
-			result := fingerprintEndpoint(
-				endpoint,
+			result := verifyDatabaseEndpoint(
+				job.ip,
+				job.port,
+				job.name,
 			)
 
-			mutex.Lock()
-
-			results = append(
-				results,
-				result,
-			)
-
-			mutex.Unlock()
+			// Only return interesting results.
+			//
+			// We don't print every closed port as a
+			// database service.
+			if result.Status != "closed" {
+				resultChannel <- result
+			}
 		}
+	}
+
+	workers := maxWorkers
+
+	if len(jobs) < workers {
+		workers = len(jobs)
 	}
 
 	wg.Add(workers)
@@ -686,171 +570,244 @@ func fingerprintOpenEndpoints(
 		go worker()
 	}
 
-	for _, endpoint := range endpoints {
-		jobs <- endpoint
-	}
-
-	close(jobs)
-
 	wg.Wait()
+
+	close(resultChannel)
+
+	for result := range resultChannel {
+		results = append(
+			results,
+			result,
+		)
+	}
 
 	return results
 }
 
 // ============================================================
-// ENDPOINT FINGERPRINT
+// ENDPOINT VERIFICATION
 // ============================================================
 
-func fingerprintEndpoint(
-	endpoint DatabaseEndpoint,
+func verifyDatabaseEndpoint(
+	host string,
+	port int,
+	candidate string,
 ) DatabaseReconResult {
 
 	result := DatabaseReconResult{
-		IP:         endpoint.IP,
-		Port:       endpoint.Port,
-		Protocol:   "TCP",
-		Database:   "Unknown",
-		Status:     "OPEN",
-		Confidence: "NONE",
-		TLS:        "unknown",
-		Evidence:   "TCP connection accepted",
+		Host:       host,
+		Port:       port,
+		Protocol:   "tcp",
+		Database:   candidate,
+		Status:     "unknown",
+		Confidence: "none",
+		Live:       false,
 	}
 
-	address := net.JoinHostPort(
-		endpoint.IP,
-		fmt.Sprintf("%d", endpoint.Port),
-	)
+	// --------------------------------------------------------
+	// TCP CONNECT
+	// --------------------------------------------------------
 
 	conn, err := (&net.Dialer{
-		Timeout: connectTimeout,
+		Timeout: 2 * time.Second,
 	}).Dial(
 		"tcp",
-		address,
+		net.JoinHostPort(
+			host,
+			fmt.Sprintf("%d", port),
+		),
 	)
 
 	if err != nil {
 
-		result.Status = classifyTCPError(err)
-		result.Evidence = err.Error()
+		result.Status = classifyTCPError(
+			err,
+		)
+
+		switch result.Status {
+
+		case "timeout":
+			result.Evidence = "TCP connection timed out"
+
+		case "closed":
+			result.Evidence = "TCP connection refused"
+
+		default:
+			result.Evidence = "TCP connection failed"
+		}
 
 		return result
 	}
 
 	defer conn.Close()
 
+	result.Live = true
+	result.Status = "reachable"
+	result.Confidence = "low"
+	result.Evidence = "TCP connection succeeded"
+
 	// --------------------------------------------------------
-	// Protocol fingerprinting
+	// SAFE PROTOCOL IDENTIFICATION
 	// --------------------------------------------------------
 
-	switch endpoint.Port {
+	switch port {
 
 	case 3306:
-		if fp := fingerprintMySQL(conn); fp != nil {
-			return applyFingerprint(result, *fp)
+
+		if identifyMySQL(
+			conn,
+		) {
+
+			result.Database = "MySQL"
+			result.Status = "identified"
+			result.Confidence = "high"
+			result.Evidence =
+				"MySQL server greeting detected"
+
+		} else {
+
+			result.Database = "Unknown"
+			result.Evidence =
+				"TCP reachable; MySQL protocol not confirmed"
+		}
+
+	case 6379:
+
+		if identifyRedis(
+			conn,
+		) {
+
+			result.Database = "Redis"
+			result.Status = "identified"
+			result.Confidence = "high"
+			result.Evidence =
+				"Redis PING/PONG response detected"
+
+		} else {
+
+			result.Database = "Unknown"
+			result.Evidence =
+				"TCP reachable; Redis protocol not confirmed"
 		}
 
 	case 5432:
-		if fp := fingerprintPostgreSQL(conn); fp != nil {
-			return applyFingerprint(result, *fp)
+
+		if identifyPostgreSQL(
+			conn,
+		) {
+
+			result.Database = "PostgreSQL"
+			result.Status = "identified"
+			result.Confidence = "high"
+			result.Evidence =
+				"PostgreSQL protocol response detected"
+
+		} else {
+
+			result.Database = "Unknown"
+			result.Evidence =
+				"TCP reachable; PostgreSQL protocol not confirmed"
 		}
 
-	case 6379, 6380:
-		if fp := fingerprintRedis(conn); fp != nil {
-			return applyFingerprint(result, *fp)
-		}
+	default:
 
-	case 27017:
-		if fp := fingerprintMongoDB(conn); fp != nil {
-			return applyFingerprint(result, *fp)
-		}
-
-	case 1433:
-		if fp := fingerprintMSSQL(conn); fp != nil {
-			return applyFingerprint(result, *fp)
-		}
-
-	case 9042:
-		if fp := fingerprintCassandra(conn); fp != nil {
-			return applyFingerprint(result, *fp)
-		}
-
-	case 8529:
-		if fp := fingerprintArangoDB(conn); fp != nil {
-			return applyFingerprint(result, *fp)
-		}
-	}
-
-	// --------------------------------------------------------
-	// Generic banner
-	// --------------------------------------------------------
-
-	if banner := readGenericBanner(conn); banner != "" {
-
+		result.Database = candidate
 		result.Evidence =
-			"TCP open; application banner: " +
-				banner
-
-		result.Confidence = "LOW"
-
-		return result
+			"TCP reachable; protocol identification not implemented for this service"
 	}
 
-	result.Evidence =
-		"TCP port open; database protocol not confirmed"
-
 	return result
 }
 
 // ============================================================
-// APPLY FINGERPRINT
+// TCP ERROR CLASSIFICATION
 // ============================================================
 
-func applyFingerprint(
-	result DatabaseReconResult,
-	fp databaseFingerprint,
-) DatabaseReconResult {
+func classifyTCPError(
+	err error,
+) string {
 
-	result.Database = fp.Database
-	result.Version = fp.Version
-	result.Confidence = fp.Confidence
-	result.Evidence = fp.Evidence
-	result.TLS = fp.TLS
-	result.Status = "IDENTIFIED"
+	if err == nil {
+		return "reachable"
+	}
 
-	return result
+	if strings.Contains(
+		strings.ToLower(err.Error()),
+		"timeout",
+	) {
+
+		return "timeout"
+	}
+
+	if strings.Contains(
+		strings.ToLower(err.Error()),
+		"refused",
+	) {
+
+		return "closed"
+	}
+
+	return "unreachable"
 }
 
 // ============================================================
-// MYSQL
+// MYSQL IDENTIFICATION
+// ============================================================
+//
+// MySQL sends a server greeting immediately after TCP
+// connection.
+//
+// We only READ the greeting.
+//
+// No authentication.
+// No credentials.
+// No SQL.
 // ============================================================
 
-func fingerprintMySQL(
+func identifyMySQL(
 	conn net.Conn,
-) *databaseFingerprint {
+) bool {
 
 	_ = conn.SetReadDeadline(
-		time.Now().Add(probeTimeout),
+		time.Now().Add(
+			1500 * time.Millisecond,
+		),
 	)
 
-	reader := bufio.NewReader(conn)
+	reader := bufio.NewReader(
+		conn,
+	)
 
-	header := make([]byte, 4)
+	// MySQL packet header:
+	//
+	// 3 bytes payload length
+	// 1 byte sequence ID
 
+	header := make(
+		[]byte,
+		4,
+	)
+
+	// FIX:
+	// ReadFull belongs to the io package.
 	if _, err := io.ReadFull(
 		reader,
 		header,
 	); err != nil {
-		return nil
+
+		return false
 	}
 
-	payloadLength :=
-		int(header[0]) |
-			int(header[1])<<8 |
-			int(header[2])<<16
+	payloadLength := int(
+		header[0],
+	) |
+		int(header[1])<<8 |
+		int(header[2])<<16
 
 	if payloadLength <= 0 ||
-		payloadLength > maxBannerSize {
-		return nil
+		payloadLength > 1<<20 {
+
+		return false
 	}
 
 	payload := make(
@@ -858,948 +815,212 @@ func fingerprintMySQL(
 		payloadLength,
 	)
 
+	// FIX:
+	// ReadFull belongs to the io package.
 	if _, err := io.ReadFull(
 		reader,
 		payload,
 	); err != nil {
-		return nil
-	}
 
-	if len(payload) < 2 {
-		return nil
+		return false
 	}
 
 	// MySQL protocol version 10.
-	if payload[0] != 0x0A {
-		return nil
-	}
-
-	versionEnd := 1
-
-	for versionEnd < len(payload) &&
-		payload[versionEnd] != 0 {
-		versionEnd++
-	}
-
-	version := ""
-
-	if versionEnd > 1 {
-		version = string(
-			payload[1:versionEnd],
-		)
-	}
-
-	tls := mysqlTLSCapability(payload)
-
-	evidence := "MySQL protocol handshake"
-
-	if version != "" {
-		evidence += "; server version advertised"
-	}
-
-	return &databaseFingerprint{
-		Database:   "MySQL",
-		Version:    version,
-		Confidence: "HIGH",
-		Evidence:   evidence,
-		TLS:        tls,
-	}
+	return len(payload) > 0 &&
+		payload[0] == 0x0a
 }
 
 // ============================================================
-// MYSQL TLS CAPABILITY
+// REDIS IDENTIFICATION
+// ============================================================
+//
+// PING is a read-only Redis command.
+//
+// The request is bounded and does not attempt authentication.
+//
+// IMPORTANT:
+// This is still an active protocol probe, so --verify must
+// only be used against systems you are authorized to test.
 // ============================================================
 
-func mysqlTLSCapability(
-	payload []byte,
-) string {
-
-	// Find server version terminator.
-	index := bytesIndexByte(
-		payload,
-		0,
-	)
-
-	if index < 0 {
-		return "unknown"
-	}
-
-	// Protocol:
-	//
-	// protocol version       1
-	// server version         NUL
-	// connection id          4
-	// auth data              8
-	// filler                 1
-	// capability lower       2
-	//
-	pos := index + 1
-
-	if len(payload) < pos+4+8+1+2 {
-		return "unknown"
-	}
-
-	pos += 4
-	pos += 8
-	pos += 1
-
-	lower := binary.LittleEndian.Uint16(
-		payload[pos : pos+2],
-	)
-
-	// CLIENT_SSL = 0x0800
-	if lower&0x0800 != 0 {
-		return "supported"
-	}
-
-	return "not advertised"
-}
-
-// ============================================================
-// POSTGRESQL
-// ============================================================
-
-func fingerprintPostgreSQL(
+func identifyRedis(
 	conn net.Conn,
-) *databaseFingerprint {
+) bool {
 
 	_ = conn.SetDeadline(
-		time.Now().Add(probeTimeout),
-	)
-
-	// StartupMessage:
-	//
-	// length
-	// protocol 3.0
-	// user
-	// database
-	//
-
-	payload := make(
-		[]byte,
-		0,
-		64,
-	)
-
-	protocol := make(
-		[]byte,
-		4,
-	)
-
-	binary.BigEndian.PutUint32(
-		protocol,
-		196608,
-	)
-
-	payload = append(
-		payload,
-		protocol...,
-	)
-
-	payload = append(
-		payload,
-		[]byte("user\x00zebra_probe\x00")...,
-	)
-
-	payload = append(
-		payload,
-		[]byte("database\x00zebra_probe\x00")...,
-	)
-
-	payload = append(
-		payload,
-		0,
-	)
-
-	packet := make(
-		[]byte,
-		4,
-	)
-
-	binary.BigEndian.PutUint32(
-		packet,
-		uint32(4+len(payload)),
-	)
-
-	packet = append(
-		packet,
-		payload...,
-	)
-
-	if _, err := conn.Write(packet); err != nil {
-		return nil
-	}
-
-	response := make(
-		[]byte,
-		4096,
-	)
-
-	n, err := conn.Read(response)
-
-	if err != nil && n == 0 {
-		return nil
-	}
-
-	if n <= 0 {
-		return nil
-	}
-
-	switch response[0] {
-
-	case 'R':
-
-		return &databaseFingerprint{
-			Database:   "PostgreSQL",
-			Confidence: "HIGH",
-			Evidence:   "PostgreSQL authentication protocol response",
-			TLS:        "unknown",
-		}
-
-	case 'E':
-
-		return &databaseFingerprint{
-			Database:   "PostgreSQL",
-			Confidence: "HIGH",
-			Evidence:   "PostgreSQL ErrorResponse protocol message",
-			TLS:        "unknown",
-		}
-
-	case 'S', 'N':
-
-		return &databaseFingerprint{
-			Database:   "PostgreSQL",
-			Confidence: "HIGH",
-			Evidence:   "PostgreSQL backend protocol response",
-			TLS:        "unknown",
-		}
-	}
-
-	return nil
-}
-
-// ============================================================
-// REDIS
-// ============================================================
-
-func fingerprintRedis(
-	conn net.Conn,
-) *databaseFingerprint {
-
-	_ = conn.SetDeadline(
-		time.Now().Add(probeTimeout),
-	)
-
-	_, err := conn.Write(
-		[]byte(
-			"*1\r\n$4\r\nPING\r\n",
+		time.Now().Add(
+			1500 * time.Millisecond,
 		),
 	)
 
+	// RESP PING.
+	_, err := conn.Write(
+		[]byte("*1\r\n$4\r\nPING\r\n"),
+	)
+
 	if err != nil {
-		return nil
+		return false
 	}
 
-	reader := bufio.NewReader(conn)
+	reader := bufio.NewReader(
+		conn,
+	)
 
 	response, err := reader.ReadString(
 		'\n',
 	)
 
 	if err != nil {
-		return nil
+		return false
 	}
 
 	response = strings.TrimSpace(
 		response,
 	)
 
-	if response == "+PONG" {
-
-		return &databaseFingerprint{
-			Database:   "Redis",
-			Confidence: "HIGH",
-			Evidence:   "Redis RESP PING/PONG response",
-			TLS:        "unknown",
-		}
-	}
-
-	if strings.HasPrefix(
+	return strings.HasPrefix(
 		response,
-		"-NOAUTH",
-	) {
-
-		return &databaseFingerprint{
-			Database:   "Redis",
-			Confidence: "HIGH",
-			Evidence:   "Redis RESP authentication-required response",
-			TLS:        "unknown",
-		}
-	}
-
-	if strings.HasPrefix(
-		response,
-		"-ERR",
-	) {
-
-		return &databaseFingerprint{
-			Database:   "Redis",
-			Confidence: "HIGH",
-			Evidence:   "Redis RESP error response",
-			TLS:        "unknown",
-		}
-	}
-
-	return nil
+		"+PONG",
+	)
 }
 
 // ============================================================
-// MONGODB
+// POSTGRESQL IDENTIFICATION
+// ============================================================
+//
+// Sends a minimal PostgreSQL StartupMessage.
+//
+// user/database are intentionally omitted.
+//
+// A PostgreSQL server should respond with an authentication,
+// error, or other PostgreSQL protocol message.
+//
+// We do not authenticate.
 // ============================================================
 
-func fingerprintMongoDB(
+func identifyPostgreSQL(
 	conn net.Conn,
-) *databaseFingerprint {
+) bool {
 
 	_ = conn.SetDeadline(
-		time.Now().Add(probeTimeout),
+		time.Now().Add(
+			1500 * time.Millisecond,
+		),
 	)
 
-	// BSON:
+	// PostgreSQL protocol version 3.0.
 	//
-	// {
-	//   ismaster: true
-	// }
+	// StartupMessage:
 	//
+	// int32 length
+	// int32 protocol version
+	// parameters...
+	//
+	// Empty parameter list is sufficient for a protocol-level
+	// response from many PostgreSQL servers.
 
-	bson := make(
+	packet := make(
 		[]byte,
-		0,
-		32,
+		8,
 	)
 
-	bson = append(
-		bson,
-		0, 0, 0, 0,
+	binary.BigEndian.PutUint32(
+		packet[0:4],
+		8,
 	)
 
-	bson = append(
-		bson,
-		0x08,
+	binary.BigEndian.PutUint32(
+		packet[4:8],
+		196608,
 	)
 
-	bson = append(
-		bson,
-		[]byte("ismaster")...,
-	)
+	if _, err := conn.Write(
+		packet,
+	); err != nil {
 
-	bson = append(
-		bson,
-		0,
-		1,
-		0,
-	)
-
-	binary.LittleEndian.PutUint32(
-		bson[:4],
-		uint32(len(bson)),
-	)
-
-	collection := []byte(
-		"admin.$cmd\x00",
-	)
-
-	query := make(
-		[]byte,
-		0,
-		64,
-	)
-
-	tmp := make([]byte, 4)
-
-	// flags
-	binary.LittleEndian.PutUint32(
-		tmp,
-		0,
-	)
-
-	query = append(query, tmp...)
-
-	// collection
-	query = append(
-		query,
-		collection...,
-	)
-
-	// numberToSkip
-	binary.LittleEndian.PutUint32(
-		tmp,
-		0,
-	)
-
-	query = append(query, tmp...)
-
-	// numberToReturn
-	binary.LittleEndian.PutUint32(
-		tmp,
-		1,
-	)
-
-	query = append(query, tmp...)
-
-	query = append(
-		query,
-		bson...,
-	)
-
-	messageLength := 16 + len(query)
-
-	message := make(
-		[]byte,
-		messageLength,
-	)
-
-	// messageLength
-	binary.LittleEndian.PutUint32(
-		message[0:4],
-		uint32(messageLength),
-	)
-
-	// requestID
-	binary.LittleEndian.PutUint32(
-		message[4:8],
-		1,
-	)
-
-	// responseTo
-	binary.LittleEndian.PutUint32(
-		message[8:12],
-		0,
-	)
-
-	// OP_QUERY = 2004
-	binary.LittleEndian.PutUint32(
-		message[12:16],
-		2004,
-	)
-
-	copy(
-		message[16:],
-		query,
-	)
-
-	if _, err := conn.Write(message); err != nil {
-		return nil
+		return false
 	}
 
 	header := make(
 		[]byte,
-		16,
+		5,
 	)
 
-	if _, err := io.ReadFull(
+	if _, err := readFullConnection(
 		conn,
 		header,
 	); err != nil {
-		return nil
+
+		return false
 	}
 
-	responseLength := int(
-		binary.LittleEndian.Uint32(
-			header[:4],
-		),
-	)
-
-	if responseLength < 16 ||
-		responseLength > maxBannerSize {
-		return nil
-	}
-
-	body := make(
-		[]byte,
-		responseLength-16,
-	)
-
-	if _, err := io.ReadFull(
-		conn,
-		body,
-	); err != nil {
-		return nil
-	}
-
-	opcode := binary.LittleEndian.Uint32(
-		header[12:16],
-	)
-
-	// OP_REPLY = 1
-	if opcode == 1 {
-
-		return &databaseFingerprint{
-			Database:   "MongoDB",
-			Confidence: "HIGH",
-			Evidence:   "MongoDB wire protocol response",
-			TLS:        "unknown",
-		}
-	}
-
-	if containsBytes(
-		body,
-		[]byte("MongoDB"),
-	) {
-
-		return &databaseFingerprint{
-			Database:   "MongoDB",
-			Confidence: "HIGH",
-			Evidence:   "MongoDB wire protocol evidence",
-			TLS:        "unknown",
-		}
-	}
-
-	return nil
-}
-
-// ============================================================
-// MSSQL
-// ============================================================
-
-func fingerprintMSSQL(
-	conn net.Conn,
-) *databaseFingerprint {
-
-	_ = conn.SetDeadline(
-		time.Now().Add(probeTimeout),
-	)
-
-	// TDS PRELOGIN packet.
+	// PostgreSQL backend messages begin with a message type.
 	//
-	// Version option
-	// Encryption option
-	// Terminator
+	// Typical responses:
 	//
+	// R = Authentication
+	// E = ErrorResponse
+	// S = ParameterStatus
+	//
+	switch header[0] {
 
-	payload := []byte{
-		0x00, 0x00, 0x0b, 0x00, 0x06,
-		0x01, 0x00, 0x11, 0x00, 0x01,
-		0xff,
+	case 'R', 'E', 'S':
+		return true
 
-		// Version data
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-
-		// Encryption
-		0x00,
-	}
-
-	packetLength := 8 + len(payload)
-
-	packet := make(
-		[]byte,
-		packetLength,
-	)
-
-	packet[0] = 0x12
-	packet[1] = 0x01
-
-	binary.BigEndian.PutUint16(
-		packet[2:4],
-		uint16(packetLength),
-	)
-
-	packet[4] = 0
-	packet[5] = 0
-	packet[6] = 0
-	packet[7] = 0
-
-	copy(
-		packet[8:],
-		payload,
-	)
-
-	if _, err := conn.Write(packet); err != nil {
-		return nil
-	}
-
-	response := make(
-		[]byte,
-		4096,
-	)
-
-	n, err := conn.Read(response)
-
-	if err != nil && n == 0 {
-		return nil
-	}
-
-	if n < 8 {
-		return nil
-	}
-
-	// TDS PRELOGIN response.
-	if response[0] != 0x12 &&
-		response[0] != 0x04 {
-		return nil
-	}
-
-	return &databaseFingerprint{
-		Database:   "Microsoft SQL Server",
-		Confidence: "HIGH",
-		Evidence:   "TDS PRELOGIN protocol response",
-		TLS:        "available through TDS negotiation",
+	default:
+		return false
 	}
 }
 
 // ============================================================
-// CASSANDRA
+// SAFE CONNECTION READ
 // ============================================================
 
-func fingerprintCassandra(
+func readFullConnection(
 	conn net.Conn,
-) *databaseFingerprint {
+	buffer []byte,
+) ([]byte, error) {
 
-	_ = conn.SetDeadline(
-		time.Now().Add(probeTimeout),
-	)
+	offset := 0
 
-	// Cassandra native protocol STARTUP.
-	//
-	// version  = v4 request
-	// flags
-	// stream
-	// opcode   = STARTUP
-	// length
-	//
+	for offset < len(buffer) {
 
-	body := []byte{
-		0x00,
-		0x00,
-	}
-
-	frame := make(
-		[]byte,
-		9,
-	)
-
-	frame[0] = 0x04
-	frame[1] = 0x00
-
-	binary.BigEndian.PutUint16(
-		frame[2:4],
-		0,
-	)
-
-	frame[4] = 0x01
-
-	binary.BigEndian.PutUint32(
-		frame[5:9],
-		uint32(len(body)),
-	)
-
-	frame = append(
-		frame,
-		body...,
-	)
-
-	if _, err := conn.Write(frame); err != nil {
-		return nil
-	}
-
-	response := make(
-		[]byte,
-		1024,
-	)
-
-	n, err := conn.Read(response)
-
-	if err != nil && n == 0 {
-		return nil
-	}
-
-	if n < 9 {
-		return nil
-	}
-
-	// Server responses have direction bit set.
-	if response[0]&0x80 != 0 {
-
-		return &databaseFingerprint{
-			Database:   "Cassandra",
-			Confidence: "HIGH",
-			Evidence:   "Cassandra native protocol response",
-			TLS:        "unknown",
-		}
-	}
-
-	return nil
-}
-
-// ============================================================
-// ARANGODB
-// ============================================================
-
-func fingerprintArangoDB(
-	conn net.Conn,
-) *databaseFingerprint {
-
-	_ = conn.SetDeadline(
-		time.Now().Add(probeTimeout),
-	)
-
-	request :=
-		"HEAD / HTTP/1.1\r\n" +
-			"Host: localhost\r\n" +
-			"Connection: close\r\n\r\n"
-
-	if _, err := conn.Write(
-		[]byte(request),
-	); err != nil {
-		return nil
-	}
-
-	reader := bufio.NewReader(conn)
-
-	statusLine, err := reader.ReadString(
-		'\n',
-	)
-
-	if err != nil {
-		return nil
-	}
-
-	statusLine = strings.TrimSpace(
-		statusLine,
-	)
-
-	if !strings.HasPrefix(
-		statusLine,
-		"HTTP/",
-	) {
-		return nil
-	}
-
-	for i := 0; i < 30; i++ {
-
-		line, err := reader.ReadString(
-			'\n',
+		n, err := conn.Read(
+			buffer[offset:],
 		)
 
 		if err != nil {
-			break
+			return nil, err
 		}
 
-		line = strings.TrimSpace(line)
-
-		lower := strings.ToLower(line)
-
-		if strings.HasPrefix(
-			lower,
-			"server:",
-		) &&
-			strings.Contains(
-				lower,
-				"arangodb",
-			) {
-
-			return &databaseFingerprint{
-				Database:   "ArangoDB",
-				Confidence: "HIGH",
-				Evidence:   "HTTP Server header identifies ArangoDB",
-				TLS:        "unknown",
-			}
-		}
-	}
-
-	return nil
-}
-
-// ============================================================
-// GENERIC BANNER
-// ============================================================
-
-func readGenericBanner(
-	conn net.Conn,
-) string {
-
-	_ = conn.SetReadDeadline(
-		time.Now().Add(
-			400 * time.Millisecond,
-		),
-	)
-
-	buffer := make(
-		[]byte,
-		1024,
-	)
-
-	n, err := conn.Read(buffer)
-
-	if err != nil || n <= 0 {
-		return ""
-	}
-
-	return sanitizeBanner(
-		string(buffer[:n]),
-	)
-}
-
-// ============================================================
-// SANITIZE BANNER
-// ============================================================
-
-func sanitizeBanner(
-	value string,
-) string {
-
-	value = strings.ReplaceAll(
-		value,
-		"\r",
-		" ",
-	)
-
-	value = strings.ReplaceAll(
-		value,
-		"\n",
-		" ",
-	)
-
-	value = strings.ReplaceAll(
-		value,
-		"\x00",
-		" ",
-	)
-
-	value = strings.TrimSpace(value)
-
-	if len(value) > 120 {
-		value = value[:120] + "..."
-	}
-
-	var builder strings.Builder
-
-	for _, c := range value {
-
-		if c >= 32 && c <= 126 {
-			builder.WriteRune(c)
-		}
-	}
-
-	return strings.TrimSpace(
-		builder.String(),
-	)
-}
-
-// ============================================================
-// BYTE HELPERS
-// ============================================================
-
-func bytesIndexByte(
-	data []byte,
-	target byte,
-) int {
-
-	for i, value := range data {
-
-		if value == target {
-			return i
-		}
-	}
-
-	return -1
-}
-
-func containsBytes(
-	data []byte,
-	needle []byte,
-) bool {
-
-	if len(needle) == 0 {
-		return true
-	}
-
-	if len(data) < len(needle) {
-		return false
-	}
-
-	for i := 0; i <= len(data)-len(needle); i++ {
-
-		match := true
-
-		for j := range needle {
-
-			if data[i+j] != needle[j] {
-				match = false
-				break
-			}
+		if n == 0 {
+			return nil, fmt.Errorf(
+				"empty read",
+			)
 		}
 
-		if match {
-			return true
-		}
+		offset += n
 	}
 
-	return false
-}
-
-// ============================================================
-// ERROR CLASSIFICATION
-// ============================================================
-
-func isTimeout(err error) bool {
-
-	if err == nil {
-		return false
-	}
-
-	if networkError, ok := err.(net.Error); ok {
-
-		if networkError.Timeout() {
-			return true
-		}
-	}
-
-	return strings.Contains(
-		strings.ToLower(err.Error()),
-		"timeout",
-	)
-}
-
-func isRefused(err error) bool {
-
-	if err == nil {
-		return false
-	}
-
-	return strings.Contains(
-		strings.ToLower(err.Error()),
-		"connection refused",
-	)
-}
-
-func classifyTCPError(
-	err error,
-) string {
-
-	if isTimeout(err) {
-		return "FILTERED"
-	}
-
-	if isRefused(err) {
-		return "CLOSED"
-	}
-
-	return "ERROR"
+	return buffer, nil
 }
 
 // ============================================================
 // INFRASTRUCTURE DETECTION
 // ============================================================
 
-func detectInfrastructure(
+func detectDatabaseInfrastructure(
 	target string,
 	ips []string,
 ) string {
 
+	// --------------------------------------------------------
+	// First inspect CNAME.
+	// --------------------------------------------------------
+
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
-		4*time.Second,
+		5*time.Second,
 	)
 
 	defer cancel()
@@ -1820,19 +1041,38 @@ func detectInfrastructure(
 
 		switch {
 
-		case strings.Contains(cname, "cloudflare"):
+		case strings.Contains(
+			cname,
+			"cloudflare",
+		):
 			return "Cloudflare / reverse proxy indicator"
 
-		case strings.Contains(cname, "cloudfront"):
+		case strings.Contains(
+			cname,
+			"cloudfront",
+		):
 			return "Amazon CloudFront indicator"
 
-		case strings.Contains(cname, "akamai"):
+		case strings.Contains(
+			cname,
+			"akamai",
+		):
 			return "Akamai indicator"
 
-		case strings.Contains(cname, "fastly"):
+		case strings.Contains(
+			cname,
+			"fastly",
+		):
 			return "Fastly indicator"
 		}
 	}
+
+	// --------------------------------------------------------
+	// Check known Cloudflare IPv4 ranges.
+	//
+	// This is intentionally only an indicator.
+	// It does not prove that Cloudflare is being used.
+	// --------------------------------------------------------
 
 	for _, ipString := range ips {
 
@@ -1842,7 +1082,7 @@ func detectInfrastructure(
 			continue
 		}
 
-		if isCloudflareIP(ip) {
+		if isKnownCloudflareIP(ip) {
 			return "Cloudflare edge IP indicator"
 		}
 	}
@@ -1851,12 +1091,16 @@ func detectInfrastructure(
 }
 
 // ============================================================
-// CLOUDFLARE RANGE CHECK
+// CLOUDFLARE IP INDICATOR
 // ============================================================
 
-func isCloudflareIP(
+func isKnownCloudflareIP(
 	ip net.IP,
 ) bool {
+
+	// Common Cloudflare IPv4 ranges.
+	//
+	// These are only indicators for report enrichment.
 
 	ranges := []string{
 		"173.245.48.0/20",
@@ -1878,7 +1122,9 @@ func isCloudflareIP(
 
 	for _, cidr := range ranges {
 
-		_, network, err := net.ParseCIDR(cidr)
+		_, network, err := net.ParseCIDR(
+			cidr,
+		)
 
 		if err != nil {
 			continue
@@ -1893,10 +1139,10 @@ func isCloudflareIP(
 }
 
 // ============================================================
-// DEDUPLICATE
+// DEDUPLICATION
 // ============================================================
 
-func deduplicateResults(
+func deduplicateDatabaseResults(
 	results []DatabaseReconResult,
 ) []DatabaseReconResult {
 
@@ -1913,11 +1159,14 @@ func deduplicateResults(
 	for _, result := range results {
 
 		key := fmt.Sprintf(
-			"%s|%d|%s|%s",
-			strings.ToLower(result.IP),
+			"%s|%d|%s",
+			strings.ToLower(
+				result.Host,
+			),
 			result.Port,
-			strings.ToLower(result.Database),
-			strings.ToLower(result.Version),
+			strings.ToLower(
+				result.Database,
+			),
 		)
 
 		if seen[key] {
@@ -1936,10 +1185,10 @@ func deduplicateResults(
 }
 
 // ============================================================
-// SORT
+// SORTING
 // ============================================================
 
-func sortResults(
+func sortDatabaseResults(
 	results []DatabaseReconResult,
 ) {
 
@@ -1947,14 +1196,14 @@ func sortResults(
 		results,
 		func(i, j int) bool {
 
-			if results[i].IP != results[j].IP {
-				return results[i].IP <
-					results[j].IP
-			}
-
 			if results[i].Port != results[j].Port {
 				return results[i].Port <
 					results[j].Port
+			}
+
+			if results[i].Host != results[j].Host {
+				return results[i].Host <
+					results[j].Host
 			}
 
 			return results[i].Database <
@@ -1964,19 +1213,21 @@ func sortResults(
 }
 
 // ============================================================
-// PASSIVE REPORT
+// REPORT
 // ============================================================
 
-func printPassiveReport(
+func printDatabaseReconReport(
 	target string,
+	verify bool,
+	results []DatabaseReconResult,
 	ips []string,
 	infrastructure string,
-	results []DatabaseReconResult,
 ) {
 
 	fmt.Println()
+
 	fmt.Println("DATABASE RECON")
-	fmt.Println("════════════════════════════════════════════════")
+	fmt.Println("────────────────────────────────────────")
 	fmt.Println()
 
 	fmt.Printf(
@@ -1984,18 +1235,33 @@ func printPassiveReport(
 		target,
 	)
 
-	fmt.Println("Mode         passive")
+	if verify {
+		fmt.Println(
+			"Mode         active verification",
+		)
+	} else {
+		fmt.Println(
+			"Mode         passive",
+		)
+	}
 
 	fmt.Println()
+
+	// --------------------------------------------------------
+	// Infrastructure
+	// --------------------------------------------------------
 
 	fmt.Println("Infrastructure")
 
 	if infrastructure != "" {
+
 		fmt.Printf(
 			"  %s\n",
 			infrastructure,
 		)
+
 	} else {
+
 		fmt.Println(
 			"  No common CDN/proxy indicator detected",
 		)
@@ -2003,292 +1269,148 @@ func printPassiveReport(
 
 	fmt.Println()
 
-	fmt.Println("Resolved Addresses")
+	// --------------------------------------------------------
+	// Services
+	// --------------------------------------------------------
 
-	for _, ip := range ips {
-		fmt.Printf(
-			"  %s\n",
-			ip,
-		)
-	}
-
+	fmt.Println("Database Services")
 	fmt.Println()
-
-	fmt.Println("Database DNS Records")
 
 	if len(results) == 0 {
 
 		fmt.Println(
-			"  None identified.",
+			"No database service identified.",
 		)
 
 	} else {
+
+		fmt.Printf(
+			"%-18s %-7s %-20s %-14s %-12s\n",
+			"Host",
+			"Port",
+			"Database",
+			"TCP State",
+			"Confidence",
+		)
+
+		fmt.Println(
+			"────────────────────────────────────────────────────────────────",
+		)
 
 		for _, result := range results {
 
 			fmt.Printf(
-				"  %s:%d  %s\n",
-				result.IP,
+				"%-18s %-7d %-20s %-14s %-12s\n",
+				shortDatabaseHost(
+					result.Host,
+				),
 				result.Port,
 				result.Database,
+				result.Status,
+				result.Confidence,
 			)
 
 			fmt.Printf(
-				"    Evidence: %s\n",
+				"  Evidence: %s\n",
 				result.Evidence,
 			)
+
+			fmt.Println()
 		}
 	}
 
-	fmt.Println()
-}
+	// --------------------------------------------------------
+	// IP addresses
+	// --------------------------------------------------------
 
-// ============================================================
-// FULL REPORT
-// ============================================================
+	fmt.Println("Target IPs:")
 
-func printFullReport(
-	target string,
-	ips []string,
-	infrastructure string,
-	results []DatabaseReconResult,
-	stats databaseScanStats,
-) {
+	if len(ips) == 0 {
 
-	fmt.Println()
-	fmt.Println("DATABASE RECON")
-	fmt.Println("════════════════════════════════════════════════════════")
-	fmt.Println()
-
-	fmt.Printf(
-		"Target       %s\n",
-		target,
-	)
-
-	fmt.Println(
-		"Mode         FULL TCP + DATABASE FINGERPRINT",
-	)
-
-	fmt.Println()
-
-	fmt.Println("Infrastructure")
-
-	if infrastructure != "" {
-
-		fmt.Printf(
-			"  %s\n",
-			infrastructure,
+		fmt.Println(
+			"  None resolved",
 		)
 
 	} else {
 
-		fmt.Println(
-			"  No common CDN/proxy indicator detected",
-		)
-	}
-
-	fmt.Println()
-
-	fmt.Println("Resolved Addresses")
-
-	for _, ip := range ips {
-		fmt.Printf(
-			"  %s\n",
-			ip,
-		)
-	}
-
-	fmt.Println()
-
-	// --------------------------------------------------------
-	// Scan statistics
-	// --------------------------------------------------------
-
-	fmt.Println("TCP Scan")
-
-	fmt.Printf(
-		"  Tested       %d\n",
-		stats.Tested,
-	)
-
-	fmt.Printf(
-		"  Open         %d\n",
-		stats.Open,
-	)
-
-	fmt.Printf(
-		"  Closed       %d\n",
-		stats.Closed,
-	)
-
-	fmt.Printf(
-		"  Filtered     %d\n",
-		stats.Filtered,
-	)
-
-	fmt.Printf(
-		"  Errors       %d\n",
-		stats.Errors,
-	)
-
-	fmt.Println()
-
-	// --------------------------------------------------------
-	// Database services
-	// --------------------------------------------------------
-
-	fmt.Println("DATABASE SERVICES")
-	fmt.Println("────────────────────────────────────────────────────────")
-
-	foundDatabase := false
-
-	for _, result := range results {
-
-		if result.Database == "" ||
-			result.Database == "Unknown" {
-			continue
-		}
-
-		foundDatabase = true
-
-		fmt.Printf(
-			"%s:%d\n",
-			result.IP,
-			result.Port,
-		)
-
-		fmt.Printf(
-			"  Database       %s\n",
-			result.Database,
-		)
-
-		if result.Version != "" {
+		for _, ip := range ips {
 
 			fmt.Printf(
-				"  Version        %s\n",
-				result.Version,
+				"  %s\n",
+				ip,
+			)
+		}
+	}
+
+	fmt.Println()
+
+	// --------------------------------------------------------
+	// Interpretation
+	// --------------------------------------------------------
+
+	if len(results) == 0 {
+
+		fmt.Println("Conclusion")
+
+		if verify {
+
+			fmt.Println(
+				"  No tested database endpoint was reachable.",
 			)
 
 		} else {
 
 			fmt.Println(
-				"  Version        not exposed",
+				"  No database-specific service was exposed through passive DNS.",
+			)
+
+			fmt.Println(
+				"  This does not prove that the application has no database.",
 			)
 		}
 
-		fmt.Printf(
-			"  Status         %s\n",
-			result.Status,
-		)
-
-		fmt.Printf(
-			"  Confidence     %s\n",
-			result.Confidence,
-		)
-
-		fmt.Printf(
-			"  TLS            %s\n",
-			result.TLS,
-		)
-
-		fmt.Printf(
-			"  Evidence       %s\n",
-			result.Evidence,
-		)
-
 		fmt.Println()
 	}
-
-	if !foundDatabase {
-
-		fmt.Println(
-			"No database protocol was confirmed.",
-		)
-
-		fmt.Println()
-	}
-
-	// --------------------------------------------------------
-	// Other open ports
-	// --------------------------------------------------------
-
-	fmt.Println("OTHER OPEN TCP SERVICES")
-	fmt.Println("────────────────────────────────────────────────────────")
-
-	foundOther := false
-
-	for _, result := range results {
-
-		if result.Database != "Unknown" {
-			continue
-		}
-
-		foundOther = true
-
-		fmt.Printf(
-			"%s:%d\n",
-			result.IP,
-			result.Port,
-		)
-
-		fmt.Printf(
-			"  %s\n",
-			result.Evidence,
-		)
-	}
-
-	if !foundOther {
-
-		fmt.Println(
-			"No unidentified open TCP services.",
-		)
-	}
-
-	fmt.Println()
-
-	// --------------------------------------------------------
-	// Important interpretation
-	// --------------------------------------------------------
-
-	fmt.Println("NOTES")
-	fmt.Println("────────────────────────────────────────────────────────")
-
-	fmt.Println(
-		"  OPEN does not automatically mean database.",
-	)
-
-	fmt.Println(
-		"  A database is reported only when protocol evidence",
-	)
-
-	fmt.Println(
-		"  supports the identification.",
-	)
-
-	fmt.Println(
-		"  Version is shown only when publicly exposed.",
-	)
-
-	fmt.Println(
-		"  No authentication or SQL queries were attempted.",
-	)
 
 	if infrastructure != "" {
 
+		fmt.Println("Note")
+
+		fmt.Println(
+			"  The public domain appears to use CDN/proxy infrastructure.",
+		)
+
+		fmt.Println(
+			"  The resolved IP may therefore represent the edge rather",
+		)
+
+		fmt.Println(
+			"  than the application's origin server.",
+		)
+
 		fmt.Println()
-
-		fmt.Println(
-			"  The target appears to use CDN/proxy infrastructure.",
-		)
-
-		fmt.Println(
-			"  Public scan results may describe the edge rather",
-		)
-
-		fmt.Println(
-			"  than the origin database server.",
-		)
 	}
 
+	fmt.Println(
+		"No authentication attempted.",
+	)
+
 	fmt.Println()
+}
+
+// ============================================================
+// DISPLAY HELPERS
+// ============================================================
+
+func shortDatabaseHost(
+	host string,
+) string {
+
+	host = strings.TrimSpace(host)
+
+	if len(host) <= 18 {
+		return host
+	}
+
+	return host[:15] + "..."
 }

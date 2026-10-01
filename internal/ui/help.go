@@ -17,25 +17,22 @@ func PrintHelp() {
 	// FILESYSTEM
 	// ========================================================
 
-	fmt.Println(BrightYellow + Bold + "Filesystem:" + Reset)
+	fmt.Println(
+		BrightYellow + Bold +
+			"Filesystem:" +
+			Reset,
+	)
 
 	fmt.Println("  folder <path>                         Create a folder")
 	fmt.Println("  file <path>                           Create a file")
 	fmt.Println("  cd <path>                             Change directory")
 	fmt.Println("  pwd                                   Show current directory")
 	fmt.Println("  ls [path]                             List files and folders")
-	fmt.Println("  dir [path]                            Alias for ls")
 	fmt.Println("  remove <path>                         Remove file/folder")
-	fmt.Println("  rm <path>                             Alias for remove")
 	fmt.Println("  copy <source> <destination>           Copy file")
-	fmt.Println("  cp <source> <destination>             Alias for copy")
 	fmt.Println("  move <source> <destination>           Move file/folder")
-	fmt.Println("  mv <source> <destination>             Alias for move")
-	fmt.Println("  cat <file>                            Read file")
-	fmt.Println("  read <file>                           Alias for cat")
-	fmt.Println("  write <file>                          Write file")
-	fmt.Println("  nano <file>                           Alias for write")
-	fmt.Println("  vim <file>                            Alias for write")
+	fmt.Println("  cat <file>                            Read a file")
+	fmt.Println("  write <file>                          Write a file")
 
 	fmt.Println()
 
@@ -43,11 +40,14 @@ func PrintHelp() {
 	// ENVIRONMENT
 	// ========================================================
 
-	fmt.Println(BrightYellow + Bold + "Environment:" + Reset)
+	fmt.Println(
+		BrightYellow + Bold +
+			"Environment:" +
+			Reset,
+	)
 
 	fmt.Println("  get <name>                            Get environment variable")
 	fmt.Println("  get -A                                Get all environment variables")
-	fmt.Println("  get --all                             Get all environment variables")
 	fmt.Println("  set <name> <value>                    Set persistent environment variable")
 	fmt.Println("  unset <name>                          Remove persistent environment variable")
 	fmt.Println("  path                                  View PATH")
@@ -60,38 +60,46 @@ func PrintHelp() {
 	// PROCESS
 	// ========================================================
 
-	fmt.Println(BrightYellow + Bold + "Process:" + Reset)
+	fmt.Println(
+		BrightYellow + Bold +
+			"Process:" +
+			Reset,
+	)
 
-	fmt.Println("  ps                                    List all running processes")
-	fmt.Println("  procs                                 Alias for ps")
-	fmt.Println("  processes                             Alias for ps")
-	fmt.Println("  ppid <pid>                            Find a process by PID")
+	fmt.Println("  ps                                    List running processes")
+	fmt.Println("  ppid <pid>                            Find process by PID")
 	fmt.Println("  pgrep <name>                          Search processes by name")
-	fmt.Println("  kill <pid>                            Kill a process by PID")
-	fmt.Println("  pkill <name>                          Kill all processes matching name")
-	fmt.Println("  killself                              Terminate the current process")
+	fmt.Println("  kill <pid>                            Kill process by PID")
+	fmt.Println("  pkill <name>                          Kill processes by name")
+	fmt.Println("  killself                              Terminate current process")
 
 	fmt.Println()
 
 	// ========================================================
-	// SYMLINKS & LINKS
+	// LINKS
 	// ========================================================
 
-	fmt.Println(BrightYellow + Bold + "Symlinks & Links:" + Reset)
+	fmt.Println(
+		BrightYellow + Bold +
+			"Links:" +
+			Reset,
+	)
 
-	fmt.Println("  symlink <target> <link>               Create a symbolic link")
-	fmt.Println("  ln-s <target> <link>                  Alias for symlink")
-	fmt.Println("  readlink <link>                       Read symlink target")
-	fmt.Println("  hardlink <source> <destination>       Create a hard link")
-	fmt.Println("  ln <source> <destination>             Alias for hardlink")
+	fmt.Println("  symlink <target> <link>               Create symbolic link")
+	fmt.Println("  readlink <link>                       Read symbolic link target")
+	fmt.Println("  hardlink <source> <destination>       Create hard link")
 
 	fmt.Println()
 
 	// ========================================================
-	// PERMISSIONS & OWNERSHIP
+	// PERMISSIONS
 	// ========================================================
 
-	fmt.Println(BrightYellow + Bold + "Permissions & Ownership:" + Reset)
+	fmt.Println(
+		BrightYellow + Bold +
+			"Permissions & Ownership:" +
+			Reset,
+	)
 
 	fmt.Println("  chmod <permissions> <file>            Change file permissions")
 	fmt.Println("  chown <uid> <gid> <file>              Change file owner")
@@ -103,7 +111,11 @@ func PrintHelp() {
 	// STDIO
 	// ========================================================
 
-	fmt.Println(BrightYellow + Bold + "Stdio:" + Reset)
+	fmt.Println(
+		BrightYellow + Bold +
+			"Stdio:" +
+			Reset,
+	)
 
 	fmt.Println("  stdout <message>                      Write to standard output")
 	fmt.Println("  stderr <message>                      Write to standard error")
@@ -112,10 +124,14 @@ func PrintHelp() {
 	fmt.Println()
 
 	// ========================================================
-	// SIGNALS & EXIT
+	// SIGNALS
 	// ========================================================
 
-	fmt.Println(BrightYellow + Bold + "Signals & Exit:" + Reset)
+	fmt.Println(
+		BrightYellow + Bold +
+			"Signals & Exit Codes:" +
+			Reset,
+	)
 
 	fmt.Println("  signals                               Listen for OS signals")
 	fmt.Println("  exitcode <code>                       Exit with specific code")
@@ -123,14 +139,17 @@ func PrintHelp() {
 	fmt.Println()
 
 	// ========================================================
-	// SYSTEM INFO
+	// SYSTEM INFORMATION
 	// ========================================================
 
-	fmt.Println(BrightYellow + Bold + "System Info:" + Reset)
+	fmt.Println(
+		BrightYellow + Bold +
+			"System Information:" +
+			Reset,
+	)
 
-	fmt.Println("  sysinfo                               Show all system info")
-	fmt.Println("  systeminfo                            Display computer information")
-	fmt.Println("  systeminformation                     Alias for systeminfo")
+	fmt.Println("  sysinfo                               Show system information")
+	fmt.Println("  systeminfo                            Show detailed computer information")
 	fmt.Println("  hostname                              Show machine hostname")
 	fmt.Println("  homedir                               Show user home directory")
 	fmt.Println("  cachedir                              Show user cache directory")
@@ -139,13 +158,17 @@ func PrintHelp() {
 	fmt.Println()
 
 	// ========================================================
-	// TEMP FILES
+	// TEMPORARY FILES
 	// ========================================================
 
-	fmt.Println(BrightYellow + Bold + "Temp Files:" + Reset)
+	fmt.Println(
+		BrightYellow + Bold +
+			"Temporary Files:" +
+			Reset,
+	)
 
-	fmt.Println("  tmpfile [prefix]                      Create a temporary file")
-	fmt.Println("  tmpdir [prefix]                       Create a temporary directory")
+	fmt.Println("  tmpfile [prefix]                      Create temporary file")
+	fmt.Println("  tmpdir [prefix]                       Create temporary directory")
 	fmt.Println("  tempdir                               Show system temp directory")
 
 	fmt.Println()
@@ -154,18 +177,66 @@ func PrintHelp() {
 	// RECONNAISSANCE
 	// ========================================================
 
-	fmt.Println(BrightYellow + Bold + "Reconnaissance:" + Reset)
+	fmt.Println(
+		BrightYellow + Bold +
+			"Reconnaissance:" +
+			Reset,
+	)
 
-	fmt.Println("  dns <domain>                          Perform DNS lookup")
-	fmt.Println("  dns reverse <ip>                      Perform reverse DNS lookup")
+	fmt.Println(
+		"  dns <domain>                          DNS reconnaissance",
+	)
+
+	fmt.Println(
+		"  dns reverse <ip>                      Reverse DNS lookup",
+	)
+
+	fmt.Println(
+		"  whois <domain|ip>                     WHOIS reconnaissance",
+	)
+
+	fmt.Println(
+		"  http <url>                            HTTP/HTTPS reconnaissance",
+	)
+
+	fmt.Println(
+		"  database <target> [--verify]          Database service reconnaissance",
+	)
+
+	fmt.Println(
+		"  tls <host> [port]                     TLS/SSL certificate reconnaissance",
+	)
+
+	fmt.Println(
+		"  subfinder <domain>                    Subdomain reconnaissance",
+	)
+
+	fmt.Println(
+		"  osint <type> <target>                 OSINT reconnaissance",
+	)
+
+	fmt.Println()
+
+	// ========================================================
+	// RECON ALIASES
+	// ========================================================
+
+	fmt.Println(
+		BrightCyan + Bold +
+			"Recon Aliases:" +
+			Reset,
+	)
+
 	fmt.Println("  dnslookup                             Alias for dns")
-
-	fmt.Println("  whois <domain|ip>                     Perform WHOIS lookup")
-	fmt.Println("  whoislookup <domain|ip>               Alias for whois")
-
-	fmt.Println("  http <url>                            Perform HTTP/HTTPS reconnaissance")
-	fmt.Println("  httprecon <url>                       Alias for http")
-	fmt.Println("  http-recon <url>                      Alias for http")
+	fmt.Println("  whoislookup                           Alias for whois")
+	fmt.Println("  httprecon                             Alias for http")
+	fmt.Println("  http-recon                            Alias for http")
+	fmt.Println("  databaserecon                         Alias for database")
+	fmt.Println("  dbrecon                               Alias for database")
+	fmt.Println("  ssl                                   Alias for tls")
+	fmt.Println("  subdomain                             Alias for subfinder")
+	fmt.Println("  subs                                  Alias for subfinder")
+	fmt.Println("  recon                                 Alias for osint")
 
 	fmt.Println()
 
@@ -173,17 +244,21 @@ func PrintHelp() {
 	// HTTP METHODS
 	// ========================================================
 
-	fmt.Println(BrightCyan + Bold + "HTTP Methods:" + Reset)
+	fmt.Println(
+		BrightCyan + Bold +
+			"HTTP Methods:" +
+			Reset,
+	)
 
 	fmt.Println("  GET                                   Retrieve a resource")
-	fmt.Println("  POST                                  Submit data to a resource")
+	fmt.Println("  POST                                  Submit data")
 	fmt.Println("  PUT                                   Replace a resource")
 	fmt.Println("  PATCH                                 Partially modify a resource")
 	fmt.Println("  DELETE                                Delete a resource")
-	fmt.Println("  HEAD                                  Retrieve response headers only")
-	fmt.Println("  OPTIONS                               Query supported HTTP methods")
-	fmt.Println("  TRACE                                 Perform HTTP diagnostic request")
-	fmt.Println("  CONNECT                               Establish a tunnel")
+	fmt.Println("  HEAD                                  Retrieve headers only")
+	fmt.Println("  OPTIONS                               Query supported methods")
+	fmt.Println("  TRACE                                 Diagnostic HTTP request")
+	fmt.Println("  CONNECT                               Establish HTTP tunnel")
 
 	fmt.Println()
 
@@ -191,51 +266,26 @@ func PrintHelp() {
 	// HTTP RECON OPTIONS
 	// ========================================================
 
-	fmt.Println(BrightCyan + Bold + "HTTP Recon Options:" + Reset)
-
 	fmt.Println(
-		"  http <url> -method <method>            Set HTTP method",
+		BrightCyan + Bold +
+			"HTTP Recon Options:" +
+			Reset,
 	)
 
-	fmt.Println(
-		"  http <url> -timeout <duration>         Set request timeout",
-	)
-
-	fmt.Println(
-		"  http <url> -follow                     Follow redirects",
-	)
-
-	fmt.Println(
-		"  http <url> -no-follow                  Disable redirect following",
-	)
-
-	fmt.Println(
-		"  http <url> -max-redirects <number>     Set maximum redirects",
-	)
-
-	fmt.Println(
-		"  http <url> -user-agent <string>        Set custom User-Agent",
-	)
-
-	fmt.Println(
-		"  http <url> -header <key:value>         Add custom HTTP header",
-	)
-
-	fmt.Println(
-		"  http <url> -proxy <url>                Use HTTP/HTTPS proxy",
-	)
-
-	fmt.Println(
-		"  http <url> -insecure                   Disable TLS certificate verification",
-	)
-
-	fmt.Println(
-		"  http <url> -body-limit <size>          Limit response body size",
-	)
-
-	fmt.Println(
-		"  http <url> -o <file>                   Save reconnaissance results",
-	)
+	fmt.Println("  -method <method>                      Set HTTP method")
+	fmt.Println("  -timeout <duration>                   Set request timeout")
+	fmt.Println("  -header <key:value>                   Add HTTP header")
+	fmt.Println("  -user-agent <value>                   Set User-Agent")
+	fmt.Println("  -proxy <url>                          Use HTTP/HTTPS proxy")
+	fmt.Println("  -insecure                             Disable TLS verification")
+	fmt.Println("  -follow                               Follow redirects")
+	fmt.Println("  -no-follow                            Disable redirect following")
+	fmt.Println("  -max-redirects <n>                    Maximum redirects")
+	fmt.Println("  -body <data>                          Send request body")
+	fmt.Println("  -body-file <file>                     Send body from file")
+	fmt.Println("  -content-type <type>                  Set Content-Type")
+	fmt.Println("  -body-limit <size>                    Limit response body")
+	fmt.Println("  -o <file>                             Save reconnaissance report")
 
 	fmt.Println()
 
@@ -243,96 +293,144 @@ func PrintHelp() {
 	// HTTP RECON INFORMATION
 	// ========================================================
 
-	fmt.Println(BrightCyan + Bold + "HTTP Recon Information:" + Reset)
+	fmt.Println(
+		BrightCyan + Bold +
+			"HTTP Recon Information:" +
+			Reset,
+	)
 
 	fmt.Println("  Status Code                           HTTP response status")
-	fmt.Println("  Response Time                         Request/response duration")
+	fmt.Println("  Response Time                         Request duration")
 	fmt.Println("  Protocol                              HTTP protocol version")
 	fmt.Println("  Headers                               Response headers")
 	fmt.Println("  Cookies                               Response cookies")
 	fmt.Println("  Redirects                             Redirect chain")
-	fmt.Println("  TLS                                   TLS version and cipher information")
-	fmt.Println("  Certificates                          Peer certificate information")
+	fmt.Println("  TLS                                   TLS version and cipher")
+	fmt.Println("  Certificates                          Certificate information")
 	fmt.Println("  Security Headers                      Security header analysis")
 	fmt.Println("  Page Title                            HTML page title")
-	fmt.Println("  Technology Hints                      Detected web technologies")
+	fmt.Println("  Technology Hints                      Technology indicators")
 	fmt.Println("  Response Body                         Response body information")
 
 	fmt.Println()
 
 	// ========================================================
-	// HTTP RECON EXAMPLES
+	// DATABASE RECON
 	// ========================================================
 
-	fmt.Println(BrightCyan + Bold + "HTTP Recon Examples:" + Reset)
-
 	fmt.Println(
-		"  http example.com",
+		BrightCyan + Bold +
+			"Database Recon:" +
+			Reset,
 	)
 
 	fmt.Println(
-		"  http https://example.com",
+		"  database <target>                     Passive database reconnaissance",
 	)
 
 	fmt.Println(
-		"  http example.com -method HEAD",
+		"  database <target> --verify            Verify database endpoints",
 	)
 
 	fmt.Println(
-		"  http example.com -method OPTIONS",
+		"  databaserecon <target>                Alias for database",
 	)
 
 	fmt.Println(
-		"  http example.com -method POST",
+		"  dbrecon <target>                      Alias for database",
+	)
+
+	fmt.Println()
+
+	fmt.Println(
+		"  Supported services:",
 	)
 
 	fmt.Println(
-		"  http example.com -method PUT",
+		"    MySQL                               TCP 3306",
 	)
 
 	fmt.Println(
-		"  http example.com -method PATCH",
+		"    PostgreSQL                          TCP 5432",
 	)
 
 	fmt.Println(
-		"  http example.com -method DELETE",
+		"    Redis                               TCP 6379",
 	)
 
 	fmt.Println(
-		"  http example.com -method TRACE",
+		"    MongoDB                             TCP 27017",
 	)
 
 	fmt.Println(
-		"  http example.com -timeout 30s",
+		"    Microsoft SQL Server                TCP 1433",
 	)
 
 	fmt.Println(
-		"  http example.com -header \"Authorization: Bearer TOKEN\"",
+		"    Oracle                              TCP 1521",
 	)
 
 	fmt.Println(
-		"  http example.com -user-agent \"Zebra/1.0\"",
+		"    Cassandra                           TCP 9042",
 	)
 
 	fmt.Println(
-		"  http example.com -no-follow",
+		"    CouchDB                             TCP 5984",
 	)
 
 	fmt.Println(
-		"  http example.com -max-redirects 5",
+		"    ArangoDB                            TCP 8529",
 	)
 
-	fmt.Println(
-		"  http example.com -insecure",
-	)
+	fmt.Println()
+
+	// ========================================================
+	// OSINT
+	// ========================================================
 
 	fmt.Println(
-		"  http example.com -body-limit 5MB",
+		BrightCyan + Bold +
+			"OSINT Recon:" +
+			Reset,
 	)
 
+	fmt.Println("  osint gravatar <email>                Gravatar lookup")
+	fmt.Println("  osint hibp <email>                    HIBP lookup")
+	fmt.Println("  osint username <name>                 Username reconnaissance")
+	fmt.Println("  osint dork <query>                    Search-engine dork reconnaissance")
+	fmt.Println("  recon <type> <target>                 Alias for osint")
+
+	fmt.Println()
+
+	// ========================================================
+	// TLS / SSL
+	// ========================================================
+
 	fmt.Println(
-		"  http example.com -o report.json",
+		BrightCyan + Bold +
+			"TLS / SSL Recon:" +
+			Reset,
 	)
+
+	fmt.Println("  tls <host>                            TLS certificate reconnaissance")
+	fmt.Println("  tls <host> <port>                     Specify TLS port")
+	fmt.Println("  ssl <host>                            Alias for tls")
+
+	fmt.Println()
+
+	// ========================================================
+	// SUBDOMAIN RECON
+	// ========================================================
+
+	fmt.Println(
+		BrightCyan + Bold +
+			"Subdomain Recon:" +
+			Reset,
+	)
+
+	fmt.Println("  subfinder <domain>                    Discover subdomains")
+	fmt.Println("  subdomain <domain>                    Alias for subfinder")
+	fmt.Println("  subs <domain>                         Alias for subfinder")
 
 	fmt.Println()
 
@@ -340,15 +438,33 @@ func PrintHelp() {
 	// GENERAL
 	// ========================================================
 
-	fmt.Println(BrightYellow + Bold + "General:" + Reset)
+	fmt.Println(
+		BrightYellow + Bold +
+			"General:" +
+			Reset,
+	)
 
 	fmt.Println("  help                                  Show this help")
+	fmt.Println("  info                                  Show tool information")
 	fmt.Println("  terminal                              Open a new Zebra terminal")
+	fmt.Println("  exit                                  Exit Zebra")
+	fmt.Println("  --version                             Display Zebra version")
+
+	fmt.Println()
+
+	// ========================================================
+	// GENERAL ALIASES
+	// ========================================================
+
+	fmt.Println(
+		BrightCyan + Bold +
+			"General Aliases:" +
+			Reset,
+	)
+
 	fmt.Println("  term                                  Alias for terminal")
 	fmt.Println("  newterminal                           Alias for terminal")
-	fmt.Println("  exit                                  Exit Zebra")
 	fmt.Println("  quit                                  Alias for exit")
-	fmt.Println("  --version                             Display Zebra version")
 	fmt.Println("  version                               Alias for --version")
 
 	fmt.Println()

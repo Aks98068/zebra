@@ -1,0 +1,43 @@
+{
+    "target": "ismt.edu.np",
+    "scanned_at": "2026-10-01T10:15:32.7854194Z",
+    "duration": 2594208400,
+    "sources": [
+        "Certificate Transparency",
+        "DNS Common Names"
+    ],
+    "subdomains": [
+        {
+            "hostname": "ftp.ismt.edu.np",
+            "ips": [
+                "104.21.31.22",
+                "172.67.174.169"
+            ]
+        },
+        {
+            "hostname": "mail.ismt.edu.np",
+            "ips": [
+                "104.21.31.22",
+                "172.67.174.169"
+            ]
+        },
+        {
+            "hostname": "webmail.ismt.edu.np",
+            "ips": [
+                "104.21.31.22",
+                "172.67.174.169"
+            ]
+        },
+        {
+            "hostname": "www.ismt.edu.np",
+            "ips": [
+                "104.21.31.22",
+                "172.67.174.169"
+            ]
+        }
+    ],
+    "total_found": 4,
+    "errors": [
+        "Certificate Transparency: provider unavailable after 3 attempts: HTTP status 502"
+    ]
+}
