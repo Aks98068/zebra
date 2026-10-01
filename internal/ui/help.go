@@ -468,4 +468,238 @@ func PrintHelp() {
 	fmt.Println("  version                               Alias for --version")
 
 	fmt.Println()
+
+	fmt.Println(
+		BrightGreen + Bold +
+			"Network Reconnaissance:" +
+			Reset,
+	)
+
+	fmt.Println(
+		"  networkscan <target> [options]",
+	)
+
+	fmt.Println(
+		"  network <target> [options]",
+	)
+
+	fmt.Println(
+		"  nmap <target> [options]",
+	)
+
+	fmt.Println()
+
+	fmt.Println(
+		"  Scan Types:",
+	)
+
+	fmt.Println(
+		"    -sT                 TCP connect scan",
+	)
+
+	fmt.Println(
+		"    -sU                 UDP scan",
+	)
+
+	fmt.Println(
+		"    -sT -sU             TCP and UDP scan",
+	)
+
+	fmt.Println()
+
+	fmt.Println(
+		"  Detection:",
+	)
+
+	fmt.Println(
+		"    -sV                 Service and version detection",
+	)
+
+	fmt.Println(
+		"    -O                  Operating system detection",
+	)
+
+	fmt.Println(
+		"    -v                  Verbose scan output",
+	)
+
+	fmt.Println()
+
+	fmt.Println(
+		"  Port Selection:",
+	)
+
+	fmt.Println(
+		"    -p <ports>          Scan specified ports",
+	)
+
+	fmt.Println(
+		"    -p 22               Scan port 22",
+	)
+
+	fmt.Println(
+		"    -p 22,80,443        Scan multiple ports",
+	)
+
+	fmt.Println(
+		"    -p 1-1000           Scan port range",
+	)
+
+	fmt.Println(
+		"    -p 22,80,443,8000-9000",
+	)
+
+	fmt.Println(
+		"                        Multiple ports and ranges",
+	)
+
+	fmt.Println(
+		"    -p-                 Scan ports 1-65535",
+	)
+
+	fmt.Println(
+		"    --all-ports         Scan ports 1-65535",
+	)
+
+	fmt.Println()
+
+	fmt.Println(
+		"  Result Filtering:",
+	)
+
+	fmt.Println(
+		"    --open              Display only open ports",
+	)
+
+	fmt.Println(
+		"    --reason            Display reason for port state",
+	)
+
+	fmt.Println()
+
+	fmt.Println(
+		"  Timing and Performance:",
+	)
+
+	fmt.Println(
+		"    --timeout <time>    Connection timeout",
+	)
+
+	fmt.Println(
+		"    -T1                 Very slow timing",
+	)
+
+	fmt.Println(
+		"    -T2                 Slow timing",
+	)
+
+	fmt.Println(
+		"    -T3                 Normal timing",
+	)
+
+	fmt.Println(
+		"    -T4                 Faster timing",
+	)
+
+	fmt.Println(
+		"    -T5                 Fast timing",
+	)
+
+	fmt.Println()
+
+	fmt.Println(
+		"  Output:",
+	)
+
+	fmt.Println(
+		"    -o <file>           Write text report",
+	)
+
+	fmt.Println(
+		"    -oJ <file>          Write JSON report",
+	)
+
+	fmt.Println(
+		"    -oX <file>          Write XML report",
+	)
+
+	fmt.Println(
+		"    -oH <file>          Write HTML report",
+	)
+
+	fmt.Println()
+
+	fmt.Println(
+		"  Examples:",
+	)
+
+	fmt.Println(
+		"    nmap 192.168.1.1",
+	)
+
+	fmt.Println(
+		"    nmap 192.168.1.1 -sT",
+	)
+
+	fmt.Println(
+		"    nmap 192.168.1.1 -sU",
+	)
+
+	fmt.Println(
+		"    nmap 192.168.1.1 -sT -sU",
+	)
+
+	fmt.Println(
+		"    nmap 192.168.1.1 -sT -sV",
+	)
+
+	fmt.Println(
+		"    nmap 192.168.1.1 -sT -sV -O",
+	)
+
+	fmt.Println(
+		"    nmap 192.168.1.1 -p 22,80,443",
+	)
+
+	fmt.Println(
+		"    nmap 192.168.1.1 -p 1-1000",
+	)
+
+	fmt.Println(
+		"    nmap 192.168.1.1 -p-",
+	)
+
+	fmt.Println(
+		"    nmap 192.168.1.1 --open",
+	)
+
+	fmt.Println(
+		"    nmap 192.168.1.1 --reason",
+	)
+
+	fmt.Println(
+		"    nmap 192.168.1.1 -v",
+	)
+
+	fmt.Println(
+		"    nmap 192.168.1.1 -T4 --timeout 2s",
+	)
+
+	fmt.Println(
+		"    nmap 192.168.1.1 -sV -o report.txt",
+	)
+
+	fmt.Println(
+		"    nmap 192.168.1.1 -sV -oJ report.json",
+	)
+
+	fmt.Println(
+		"    nmap 192.168.1.1 -sV -oX report.xml",
+	)
+
+	fmt.Println(
+		"    nmap 192.168.1.1 -sV -oH report.html",
+	)
+
+	fmt.Println()
 }

@@ -6,6 +6,7 @@ import (
 	databaserecon "zebra/internal/commands/recon/database_recon"
 	"zebra/internal/commands/recon/dnss"
 	"zebra/internal/commands/recon/https"
+	networkscan "zebra/internal/commands/recon/network-scan"
 	"zebra/internal/commands/recon/osint-email"
 	"zebra/internal/commands/recon/subfinder"
 	"zebra/internal/commands/recon/tls"
@@ -525,6 +526,29 @@ func Init() {
 		Usage:       "subfinder <domain> [options]",
 		Run: func(args []string, ctx *Context) bool {
 			return subfinder.SubfinderRecon(args)
+		},
+	})
+
+	Register(Command{
+		Name: "networkscan",
+
+		Aliases: []string{
+			"network",
+			"nmap",
+			"netscan",
+		},
+
+		Description: "professional TCP and UDP network reconnaissance with port scanning, service detection, version detection, OS detection, filtering analysis, and report generation",
+
+		Usage: "networkscan <target> " +
+			"[-sT] [-sU] [-sV] [-O] [-v] " +
+			"[-p <ports>] [-p-] [--all-ports] " +
+			"[--open] [--reason] " +
+			"[--timeout <duration>] [-T1|-T2|-T3|-T4|-T5] " +
+			"[-o <file>] [-oJ <file>] [-oX <file>] [-oH <file>]",
+
+		Run: func(args []string, ctx *Context) bool {
+			return networkscan.NetworkScan(args)
 		},
 	})
 }
