@@ -3,10 +3,12 @@ package commands
 import (
 	"fmt"
 	"sort"
+	"zebra/internal/commands/recon/brute"
 	databaserecon "zebra/internal/commands/recon/database_recon"
 	"zebra/internal/commands/recon/dnss"
 	"zebra/internal/commands/recon/https"
 	networkscan "zebra/internal/commands/recon/network-scan"
+	"zebra/internal/commands/recon/newauth"
 	"zebra/internal/commands/recon/osint-email"
 	"zebra/internal/commands/recon/ping"
 	"zebra/internal/commands/recon/subfinder"
@@ -562,6 +564,26 @@ func Init() {
 			return ping.PingRecon(args)
 		},
 	})
+	Register(Command{
+		Name:        "brute",
+		Aliases:     []string{"bf", "hashbrute"},
+		Description: "perform parallel offline password-hash auditing",
+		Usage:       "brute <sha256-hash> <wordlist> [--workers <n>] [--max-attempts <n>]",
+		Run: func(args []string, ctx *Context) bool {
+			return brute.BruteForce(args)
+		},
+	})
+
+	Register(Command{
+		Name:        "netauth",
+		Aliases:     []string{"authscan", "net-auth"},
+		Description: "assess network authentication services and connectivity",
+		Usage:       "netauth <host> <port> [--workers <n>] [--timeout <seconds>]",
+		Run: func(args []string, ctx *Context) bool {
+			return newauth.NetAuth(args)
+		},
+	})
+
 }
 
 // ============================================================
