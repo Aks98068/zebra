@@ -543,9 +543,13 @@ License information will be added as the project develops.
 
 # 👨‍💻 Author
 
-**Abhishekh Kumar Sah**
+**Abhishekh Kumar Sah (`Aks98068`)**
 
-Zebra is an independent project built to explore Go programming, systems programming, cybersecurity, networking, and security-tool development.
+Zebra is an independent cybersecurity toolkit developed by **Abhishekh Kumar Sah**, also known online as **Aks98068**.
+
+The project explores **Go programming, systems programming, cybersecurity, networking, reconnaissance, digital forensics, and security-tool development**.
+
+GitHub: **Aks98068**
 
 ---
 
